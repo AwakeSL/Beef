@@ -1,11 +1,11 @@
 --!strict
 --!optimize 2
-local Events = require(game:GetService("ReplicatedStorage").Beef.Events)
+local Beef = require(game:GetService("ReplicatedStorage").Beef)
 
-export type Rained = Events.Buffer & {
+export type Rained = Beef.Buffer & {
 	handle: { number },
 	position: { Vector3 },
 	velocity: { Vector3 },
 }
 
-return Events.new("rained", "handle:u32", "position:vector3", "velocity:vector3") :: Rained
+return Beef.Events.new("rained", "handle:u32", "position:vector3", "velocity:vector3") :: Rained

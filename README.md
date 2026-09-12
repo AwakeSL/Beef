@@ -8,12 +8,8 @@ and a phase runs them in passes on the RunService signal you name. One frame, a 
 passes, thousands of rows.
 
 ```lua
-local Beef = ReplicatedStorage.Beef
-local Kinds = require(Beef.Kinds)
-local Components = require(Beef.Components)
-local Events = require(Beef.Events)
-local Phase = require(Beef.Phase)
-local Drivers = require(Beef.Drivers)
+local Beef = require(ReplicatedStorage.Beef)
+local Kinds, Components, Events, Phase, Drivers = Beef.Kinds, Beef.Components, Beef.Events, Beef.Phase, Beef.Drivers
 
 local Position = Components.new("position", { wire = "vector3" })
 local Velocity = Components.new("velocity", { wire = "vector3" })
@@ -43,6 +39,9 @@ local heartbeat = Phase.new("Heartbeat", {
 Drivers.events({ Heartbeat = heartbeat })
 ```
 
+- **One require.** `require(Beef)` is the whole interface: `Kinds`, `Components`, `Events`,
+  `Phase`, `Drivers`, `Wire` and `Stock`, with the types (`Beef.Kind`, `Beef.Buffer`,
+  `Beef.Controller`, ...) exported on the same name.
 - **Columns, not objects.** A required component is the kind's own array, indexed by position.
   An optional one is packed, with a slot per position. A loop over a kind is a loop over arrays.
 - **Events are windows.** A row is pushed with `push(...)` and read back between `from` and
@@ -108,10 +107,18 @@ the loop stage over the retained laps.
 workers, phase, ship, back })` packs a kind once into a SharedTable, hands each Actor a slice,
 and delivers what the workers pushed into `back` before the next frame's phases.
 
-**Stock.** `Send(remote, ...events)` and `Receive(remote, { name = event }, Kinds.named)` carry
-event rows server to client in one buffer a frame. `Publish(remote, kind, ...components,
-options?)` and `Apply(remote, kind, origin, ...components)` carry a kind's columns, with
-`every`, `channel`, `keyframe` and `chunk` options.
+**Stock.** Four controllers under `Beef.Stock`, used as phase entries. `Send(remote, ...events)`
+and `Receive(remote, { name = event }, Kinds.named)` carry event rows server to client in one
+buffer a frame. `Publish(remote, kind, ...components, options?)` and `Apply(remote, kind,
+origin, ...components)` carry a kind's columns, with `every`, `channel`, `keyframe` and `chunk`
+options.
+
+```lua
+local heartbeat = Phase.new("Heartbeat", {
+    { Beef.Stock.Receive, "World", { rained = Rained, landing = Landing }, Kinds.named },
+    { Rain, Rained, Landing, Drop, Origin },
+})
+```
 
 Lap the store once a frame before the phases run:
 

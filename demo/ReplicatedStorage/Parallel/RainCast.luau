@@ -2,11 +2,9 @@
 --!optimize 2
 -- worker side of the rain: each actor casts its slice of drops along their motion this frame
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Beef = ReplicatedStorage.Beef
+local Beef = require(ReplicatedStorage.Beef)
 local Rain = ReplicatedStorage.Rain
-local Kinds = require(Beef.Kinds)
-local Events = require(Beef.Events)
-local Phase = require(Beef.Phase)
+local Kinds, Events, Phase = Beef.Kinds, Beef.Events, Beef.Phase
 
 local Position = require(Rain.Components.Position)
 local Velocity = require(Rain.Components.Velocity)

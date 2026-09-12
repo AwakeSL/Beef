@@ -1,12 +1,12 @@
 --!strict
 --!optimize 2
-local Events = require(game:GetService("ReplicatedStorage").Beef.Events)
+local Beef = require(game:GetService("ReplicatedStorage").Beef)
 
-export type Landing = Events.Buffer & {
+export type Landing = Beef.Buffer & {
 	handle: { number },
 	x: { number },
 	y: { number },
 	z: { number },
 }
 
-return Events.new("landing", "handle:u32", "x:f32", "y:f32", "z:f32") :: Landing
+return Beef.Events.new("landing", "handle:u32", "x:f32", "y:f32", "z:f32") :: Landing
