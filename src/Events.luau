@@ -162,7 +162,69 @@ local makers: { (any, ...any) -> () } = {
 			buffer.count = n
 		end
 	end,
+	function(buffer: any, a, b, c, d, e)
+		buffer.push = function(v1, v2, v3, v4, v5)
+			local n = buffer.count + 1
+			a[n] = v1
+			b[n] = v2
+			c[n] = v3
+			d[n] = v4
+			e[n] = v5
+			buffer.count = n
+		end
+	end,
+	function(buffer: any, a, b, c, d, e, f)
+		buffer.push = function(v1, v2, v3, v4, v5, v6)
+			local n = buffer.count + 1
+			a[n] = v1
+			b[n] = v2
+			c[n] = v3
+			d[n] = v4
+			e[n] = v5
+			f[n] = v6
+			buffer.count = n
+		end
+	end,
+	function(buffer: any, a, b, c, d, e, f, g)
+		buffer.push = function(v1, v2, v3, v4, v5, v6, v7)
+			local n = buffer.count + 1
+			a[n] = v1
+			b[n] = v2
+			c[n] = v3
+			d[n] = v4
+			e[n] = v5
+			f[n] = v6
+			g[n] = v7
+			buffer.count = n
+		end
+	end,
+	function(buffer: any, a, b, c, d, e, f, g, h)
+		buffer.push = function(v1, v2, v3, v4, v5, v6, v7, v8)
+			local n = buffer.count + 1
+			a[n] = v1
+			b[n] = v2
+			c[n] = v3
+			d[n] = v4
+			e[n] = v5
+			f[n] = v6
+			g[n] = v7
+			h[n] = v8
+			buffer.count = n
+		end
+	end,
 }
+
+-- wider than the hand-written makers: one closure for any width, measured at about twice the cost
+-- of a fixed push of the same width
+local function wide(buffer: any, columns: { { any } }, width: number)
+	buffer.push = function(...)
+		local n = buffer.count + 1
+		for i = 1, width do
+			columns[i][n] = select(i, ...)
+		end
+		buffer.count = n
+	end
+end
 
 local Events = {}
 
@@ -175,8 +237,7 @@ function Events.new(name: string, ...: any): Buffer
 	end
 	local keep = options and options.keep or 1
 	local entity = options and options.entity or nil
-	local maker = makers[width]
-	assert(maker, ("%s: Events.new supports 1 to %d columns, got %d"):format(name, #makers, width))
+	assert(width >= 1, ("%s: Events.new needs at least one column"):format(name))
 	local columns = {}
 	local names = {}
 	local wire = {}
@@ -196,7 +257,12 @@ function Events.new(name: string, ...: any): Buffer
 		assert(table.find(names, entity), ("%s: entity column %s is not one of its columns"):format(name, entity))
 		buffer.entity = entity
 	end
-	maker(buffer, table.unpack(columns))
+	local maker = makers[width]
+	if maker then
+		maker(buffer, table.unpack(columns))
+	else
+		wide(buffer, columns, width)
+	end
 	table.insert(all, buffer)
 	return buffer
 end
