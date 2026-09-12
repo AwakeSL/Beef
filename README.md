@@ -28,8 +28,6 @@ controllers run over both in passes on whatever RunService signal you name.
 
 ## The rain
 
-<img src="assets/rain.gif" width="640" alt="a thousand drops a second falling onto slabs" />
-
 The demo place. The server spawns a thousand drops a second, casts each one along its motion in
 four Actors, and ships births and landings to the client in one remote. The client runs the same
 fall itself and draws every live drop with one adornment.
