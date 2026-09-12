@@ -10,7 +10,7 @@
 
 </div>
 
-Just a fast frame engine for Roblox. Entities live in columns, events live in buffers, and your
+A fast frame engine for Roblox. Entities live in columns, events live in buffers, and your
 controllers run over both in passes on whatever RunService signal you name.
 
 - **Columns, not objects.** A kind's required components are plain arrays indexed by position.
