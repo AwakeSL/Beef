@@ -1,5 +1,5 @@
 --!strict
 --!optimize 2
-local Component = require(game:GetService("ReplicatedStorage").Beef).Components
+local Beef = require(game:GetService("ReplicatedStorage").Beef)
 
-return Component.new("origin", { index = true } :: Component.Options) :: Component.Component<number>
+return Beef.Components.new("origin", { index = true } :: Beef.ComponentOptions) :: Beef.Component<number>

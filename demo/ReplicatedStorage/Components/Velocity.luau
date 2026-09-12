@@ -1,5 +1,5 @@
 --!strict
 --!optimize 2
-local Component = require(game:GetService("ReplicatedStorage").Beef).Components
+local Beef = require(game:GetService("ReplicatedStorage").Beef)
 
-return Component.new("velocity", { wire = "vector3" } :: Component.Options) :: Component.Component<Vector3>
+return Beef.Components.new("velocity", { wire = "vector3" } :: Beef.ComponentOptions) :: Beef.Component<Vector3>

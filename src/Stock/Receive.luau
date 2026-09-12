@@ -24,7 +24,7 @@ return function(remoteName: string, into: { [string]: Buffer }, named: Named)
 	local columnValues: { { any } } = {}
 	local args = {}
 
-	local self
+	local self: { [string]: any }
 	self = {
 		name = "Receive",
 		writes = writes,

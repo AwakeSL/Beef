@@ -14,9 +14,10 @@ local HEADER = 8 + 1 + 4
 local function remoteFolder(): Folder
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotes then
-		remotes = Instance.new("Folder")
-		remotes.Name = "Remotes"
-		remotes.Parent = ReplicatedStorage
+		local folder = Instance.new("Folder")
+		folder.Name = "Remotes"
+		folder.Parent = ReplicatedStorage
+		remotes = folder
 	end
 	return remotes :: Folder
 end
@@ -44,12 +45,8 @@ return function(remoteName: string, kind: Kind, ...: any)
 	end
 	local chunk = options.chunk or (if unreliable then math.floor((900 - HEADER) / rowBytes) else math.huge)
 
-	local remote: RemoteEvent | UnreliableRemoteEvent
-	if unreliable then
-		remote = Instance.new("UnreliableRemoteEvent")
-	else
-		remote = Instance.new("RemoteEvent")
-	end
+	-- the two remote classes share every call made here; typed as one so the calls resolve
+	local remote: RemoteEvent = if unreliable then Instance.new("UnreliableRemoteEvent") :: any else Instance.new("RemoteEvent")
 	remote.Name = remoteName
 	remote.Parent = remoteFolder()
 
@@ -92,7 +89,7 @@ return function(remoteName: string, kind: Kind, ...: any)
 		return b
 	end
 
-	local self
+	local self: { [string]: any }
 	self = {
 		name = "Publish",
 		sent = 0,

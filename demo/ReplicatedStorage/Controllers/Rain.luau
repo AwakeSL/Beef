@@ -9,7 +9,7 @@ type Origin = { add: (Kind, number, number) -> (), find: (number) -> (Kind?, num
 return function(rained: Rained, landing: Landing, drop: Kind, origin: Origin)
 	return {
 		name = "Rain",
-		reads = { rained, landing },
+		reads = { rained, landing } :: { any },
 		-- loop, not pre: Receive pushes these rows in pre, and the loop's first pass is the first window that holds them
 		loop = function()
 			for i = rained.from, rained.last do

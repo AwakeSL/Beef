@@ -28,11 +28,12 @@ local hooks: { [string]: Hook } = {}
 local function hook(name: string): Hook
 	local h = hooks[name]
 	if not h then
-		h = { before = {}, phases = {}, after = {} }
-		hooks[name] = h
+		local made: Hook = { before = {}, phases = {}, after = {} }
+		hooks[name] = made
+		h = made
 		local signal = (RunService :: any)[name] :: RBXScriptSignal
 		signal:Connect(function(dt: number?)
-			local before, phases, after = h.before, h.phases, h.after
+			local before, phases, after = made.before, made.phases, made.after
 			for i = 1, #before do
 				before[i]()
 			end
@@ -170,7 +171,7 @@ local function packKind(kind: any, components: { any }): string
 				at += 8
 			end
 		elseif wire == "u32" or wire == "i32" then
-			local write = if wire == "u32" then buffer.writeu32 else buffer.writei32
+			local write: (buffer, number, number) -> () = if wire == "u32" then buffer.writeu32 else buffer.writei32
 			for i = 1, count do
 				write(b, at, value[i])
 				at += 4
@@ -252,7 +253,7 @@ function Drivers.parallel(options: ParallelOptions): Parallel
 		assert(component.wire and component.wire ~= "string" and component.wire ~= "kind", ("parallel %s: %s cannot cross"):format(options.name, component.name))
 		table.insert(components, component)
 	end
-	local events = options.events or {}
+	local events: { any } = options.events or {}
 	for _, e in events do
 		for _, column in e.columns do
 			assert(e.wire[column] and e.wire[column] ~= "kind", ("parallel %s: event %s column %s cannot cross"):format(options.name, e.name, column))

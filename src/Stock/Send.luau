@@ -18,9 +18,10 @@ return function(remoteName: string, ...: Buffer)
 
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
 	if not remotes then
-		remotes = Instance.new("Folder")
-		remotes.Name = "Remotes"
-		remotes.Parent = ReplicatedStorage
+		local folder = Instance.new("Folder")
+		folder.Name = "Remotes"
+		folder.Parent = ReplicatedStorage
+		remotes = folder
 	end
 	local remote = Instance.new("RemoteEvent")
 	remote.Name = remoteName
@@ -30,7 +31,7 @@ return function(remoteName: string, ...: Buffer)
 	local kindIndex: { [string]: number } = {}
 	local kindNames: { string } = {}
 
-	local self
+	local self: { [string]: any }
 	self = {
 		name = "Send",
 		reads = buffers,

@@ -13,6 +13,17 @@ export type Bucket<T> = {
 	component: any?,
 }
 
+-- a sparse bucket always carries its slot, count and cap
+type Sparse<T> = {
+	value: { T },
+	has: { number },
+	slot: buffer,
+	count: number,
+	cap: number,
+	bits: buffer?,
+	component: any?,
+}
+
 export type Component<T> = {
 	name: string,
 	of: (kind: any) -> Bucket<T>,
@@ -126,19 +137,20 @@ function Component.new<T>(name: string, options: Options?): Component<T>
 
 	local denseBuckets: { [any]: Bucket<T> } = {}
 
-	local function sparseOf(kind: any): Bucket<T>
-		local bucket = self.sparse[kind]
-		if not bucket then
-			local cap = math.max(64, kind.count)
-			bucket = { value = {}, has = {}, slot = buffer.create(cap * 4), cap = cap, count = 0, component = self }
-			if withBits then
-				bucket.bits = buffer.create(FIRST_WORDS * WORD)
-			end
-			self.sparse[kind] = bucket
-			table.insert(kind.optional, self)
-			table.insert(self.on, kind)
+	local function sparseOf(kind: any): Sparse<T>
+		local bucket = self.sparse[kind] :: Sparse<T>?
+		if bucket then
+			return bucket
 		end
-		return bucket
+		local cap = math.max(64, kind.count)
+		local made: Sparse<T> = { value = {}, has = {}, slot = buffer.create(cap * 4), cap = cap, count = 0, component = self }
+		if withBits then
+			made.bits = buffer.create(FIRST_WORDS * WORD)
+		end
+		self.sparse[kind] = made
+		table.insert(kind.optional, self)
+		table.insert(self.on, kind)
+		return made
 	end
 
 	-- reading never creates: a kind that does not carry this component gets the shared empty bucket
@@ -151,9 +163,9 @@ function Component.new<T>(name: string, options: Options?): Component<T>
 		end
 		local column = self.dense[kind]
 		if column then
-			bucket = { value = column, has = kind.has }
-			denseBuckets[kind] = bucket
-			return bucket
+			local made: Bucket<T> = { value = column, has = kind.has }
+			denseBuckets[kind] = made
+			return made
 		end
 		return self.sparse[kind] or empty
 	end

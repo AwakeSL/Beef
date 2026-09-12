@@ -64,7 +64,7 @@ rojo build rain.project.json -o Rain.rbxl
 ```
 
 Open it, press Play, and the output prints the phase description and the client's draw cost:
-around 1,700 drops on screen at 1.3 ms a frame.
+around 1,600 drops on screen at 1.4 ms a frame in Studio.
 
 ## Shapes
 

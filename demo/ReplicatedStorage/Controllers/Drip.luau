@@ -3,6 +3,7 @@
 type Kind = { spawn: (...any) -> number }
 type Rained = { push: (number, Vector3, Vector3) -> () }
 type Phase = { dt: number }
+type Controller = { name: string, writes: { Rained }, pre: () -> (), phase: Phase? }
 
 local RATE = 1000
 local HEIGHT = 80
@@ -11,7 +12,7 @@ local HEIGHT = 80
 return function(drop: Kind, rained: Rained)
 	local rng = Random.new()
 	local owed = 0
-	local self
+	local self: Controller
 	self = {
 		name = "Drip",
 		writes = { rained },

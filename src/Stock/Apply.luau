@@ -32,7 +32,7 @@ return function(remoteName: string, kind: Kind, origin: Origin, ...: Component)
 	local positions: { number? } = {}
 	local stale: { boolean } = {}
 
-	local self
+	local self: { [string]: any }
 	self = {
 		name = "Apply",
 		time = 0,
@@ -89,7 +89,7 @@ return function(remoteName: string, kind: Kind, origin: Origin, ...: Component)
 							if not slot then
 								value[n] = v
 							else
-								local m = if n <= bucket.cap then buffer.readu32(slot, (n - 1) * 4) else 0
+								local m = if n <= (bucket.cap :: number) then buffer.readu32(slot, (n - 1) * 4) else 0
 								if m ~= 0 then
 									value[m] = v
 								else

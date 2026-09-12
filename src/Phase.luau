@@ -68,11 +68,11 @@ function Phase.new(name: string, entries: { Entry }): Phase
 		table.insert(controllers, controller)
 
 		local declared: { [any]: string } = {}
-		for _, buffer in controller.reads or {} do
+		for _, buffer in (controller.reads or {}) :: { any } do
 			assert(isBuffer(buffer), ("%s/%s: reads must hold event types"):format(name, who))
 			declared[buffer] = "reads"
 		end
-		for _, buffer in controller.writes or {} do
+		for _, buffer in (controller.writes or {}) :: { any } do
 			assert(isBuffer(buffer), ("%s/%s: writes must hold event types"):format(name, who))
 			declared[buffer] = if declared[buffer] then "reads, writes" else "writes"
 		end
@@ -129,7 +129,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 			if controller.loop then
 				j += 1
 				local list = {}
-				for _, buffer in readsOf[controller] or {} do
+				for _, buffer in (readsOf[controller] or {}) :: { Events.Buffer } do
 					table.insert(list, bufferIndex[buffer])
 				end
 				loopReads[j] = list

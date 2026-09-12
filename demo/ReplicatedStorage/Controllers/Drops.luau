@@ -7,10 +7,12 @@ type Component<T> = { of: (Kind) -> Bucket<T> }
 
 local POOL = 3000
 
+type Controller = { name: string, cost: number, frames: number, boot: () -> (), post: () -> () }
+
 return function(drop: Kind, position: Component<Vector3>)
 	local adornments: { SphereHandleAdornment } = {}
 	local shown = 0
-	local self
+	local self: Controller
 	self = {
 		name = "Drops",
 		cost = 0,

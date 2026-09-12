@@ -127,15 +127,15 @@ local function bookkeeping(name: string, names: { string }, wire: { [string]: st
 	return buffer
 end
 
-local makers = {
-	function(buffer, a)
+local makers: { (any, ...any) -> () } = {
+	function(buffer: any, a)
 		buffer.push = function(x)
 			local n = buffer.count + 1
 			a[n] = x
 			buffer.count = n
 		end
 	end,
-	function(buffer, a, b)
+	function(buffer: any, a, b)
 		buffer.push = function(x, y)
 			local n = buffer.count + 1
 			a[n] = x
@@ -143,7 +143,7 @@ local makers = {
 			buffer.count = n
 		end
 	end,
-	function(buffer, a, b, c)
+	function(buffer: any, a, b, c)
 		buffer.push = function(x, y, z)
 			local n = buffer.count + 1
 			a[n] = x
@@ -152,7 +152,7 @@ local makers = {
 			buffer.count = n
 		end
 	end,
-	function(buffer, a, b, c, d)
+	function(buffer: any, a, b, c, d)
 		buffer.push = function(x, y, z, w)
 			local n = buffer.count + 1
 			a[n] = x

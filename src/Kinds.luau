@@ -310,7 +310,7 @@ function Kinds.new(name: string, ...: any): Kind
 
 		-- the two snapshots either side of time and where the entity is in each
 		-- returns fraction, columnsBefore, indexBefore, columnsAfter, indexAfter; after is nil when time is at or past the newest
-		self.around = function(handle: number, time: number)
+		self.around = function(handle: number, time: number): (number?, { { any } }?, number?, { { any } }?, number?)
 			local s = head
 			local newer = nil
 			for _ = 1, history do

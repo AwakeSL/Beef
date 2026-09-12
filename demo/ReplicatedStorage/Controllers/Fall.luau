@@ -4,11 +4,12 @@ type Kind = { count: number }
 type Bucket<T> = { value: { T } }
 type Component<T> = { of: (Kind) -> Bucket<T> }
 type Phase = { dt: number }
+type Controller = { name: string, loop: () -> (), phase: Phase? }
 
 local GRAVITY = Vector3.new(0, -50, 0)
 
 return function(drop: Kind, position: Component<Vector3>, velocity: Component<Vector3>)
-	local self
+	local self: Controller
 	self = {
 		name = "Fall",
 		loop = function()

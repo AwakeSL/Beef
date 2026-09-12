@@ -13,7 +13,11 @@ local Landing = Events.new("landing", "handle:u32", "x:f32", "y:f32", "z:f32")
 local drop = Kinds.new("drop", Position, Velocity)
 local slice = { from = 0, to = 0, dt = 1 / 60, handles = {} }
 
-local function Cast(kind, position, velocity, origin, hit, range)
+type Slice = { from: number, to: number, dt: number, handles: { number } }
+type Bucket<T> = { value: { T } }
+type Comp<T> = { of: (any) -> Bucket<T> }
+
+local function Cast(kind: any, position: Comp<Vector3>, velocity: Comp<Vector3>, origin: any, hit: any, range: Slice)
 	local params = RaycastParams.new()
 	return {
 		name = "Cast",
@@ -36,7 +40,7 @@ local function Cast(kind, position, velocity, origin, hit, range)
 	}
 end
 
-local phase = Phase.new("RainCast", { { Cast, drop, Position, Velocity, Origin, Landing, slice } })
+local phase = Phase.new("RainCast", { { Cast, drop, Position, Velocity, Origin, Landing, slice } :: { any } })
 
 return {
 	phase = phase,
