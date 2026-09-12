@@ -1,0 +1,8 @@
+[package]
+name = "awakesl/beef"
+description = "Buffered ECS and Event Framework. Kinds hold columns, events are windows over a lap, controllers run in passes on the RunService signal you name. One frame, a handful of passes, thousands of rows."
+version = "0.1.0"
+license = "MIT"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+include = ["src", "src/**", "default.project.json", "wally.toml", "README.md", "LICENSE"]

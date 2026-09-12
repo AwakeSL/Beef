@@ -1,0 +1,5 @@
+--!strict
+--!optimize 2
+local Component = require(game:GetService("ReplicatedStorage").Beef.Components)
+
+return Component.new("position", { wire = "vector3" } :: Component.Options) :: Component.Component<Vector3>

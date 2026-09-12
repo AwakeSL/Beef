@@ -1,0 +1,31 @@
+{
+  "name": "beef-rain",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Beef": { "$path": "src" },
+      "Rain": { "$path": "demo/ReplicatedStorage" }
+    },
+    "ServerScriptService": { "$path": "demo/ServerScriptService" },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": { "$path": "demo/StarterPlayerScripts" }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "Baseplate": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "Size": [512, 16, 512],
+          "Position": [0, -8, 0],
+          "Color": [0.39, 0.39, 0.39],
+          "Material": "Slate",
+          "TopSurface": "Smooth",
+          "BottomSurface": "Smooth"
+        }
+      }
+    }
+  }
+}

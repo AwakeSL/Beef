@@ -1,0 +1,47 @@
+--!strict
+--!optimize 2
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Beef = ReplicatedStorage.Beef
+local Rain = ReplicatedStorage.Rain
+local Events = require(Beef.Events)
+local Kinds = require(Beef.Kinds)
+local Phase = require(Beef.Phase)
+local Drivers = require(Beef.Drivers)
+local Stock = Beef.Stock
+local Landing = require(Rain.Events.Landing)
+local Rained = require(Rain.Events.Rained)
+local Drop = require(Rain.Kinds.Drop)
+local Position = require(Rain.Components.Position)
+local Velocity = require(Rain.Components.Velocity)
+local Controllers = Rain.Controllers
+
+-- the rain casts run in actors: packed after the phases on PreSimulation, back before them on Heartbeat
+Drivers.parallel({
+	name = "Rain",
+	workers = 4,
+	phase = Rain.Parallel.RainCast,
+	ship = { Drop, Position, Velocity },
+	back = { Landing },
+})
+
+local heartbeat = Phase.new("Heartbeat", {
+	{ require(Controllers.Ground) },
+	{ require(Controllers.Drip), Drop, Rained },
+	{ require(Controllers.Land), Landing, Drop },
+	{ require(Controllers.Fall), Drop, Position, Velocity },
+	{ require(Controllers.Floor), Drop, Position },
+	{ require(Stock.Send), "World", Kinds.died, Rained, Landing },
+	{ require(Controllers.Report) },
+})
+
+print(heartbeat.describe())
+
+RunService.PreAnimation:Connect(function()
+	Events.lap()
+	Kinds.lap()
+end)
+Drivers.events({
+	Heartbeat = heartbeat,
+})

@@ -1,0 +1,14 @@
+std = "roblox"
+
+[lints]
+undefined_variable = "deny"
+duplicate_keys = "deny"
+global_usage = "deny"
+unscoped_variables = "deny"
+if_same_then_else = "warn"
+incorrect_standard_library_use = "allow"
+multiple_statements = "allow"
+shadowing = "allow"
+mixed_table = "allow"
+unused_variable = "allow"
+empty_if = "allow"
