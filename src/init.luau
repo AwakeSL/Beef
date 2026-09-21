@@ -7,6 +7,7 @@ local Events = require(script.Events)
 local Phase = require(script.Phase)
 local Drivers = require(script.Drivers)
 local Wire = require(script.Wire)
+local Cue = require(script.Cue)
 
 export type Kind = Kinds.Kind
 export type KindOptions = Kinds.Options
@@ -21,6 +22,8 @@ export type Phase = Phase.Phase
 export type Step = Drivers.Step
 export type Parallel = Drivers.Parallel
 export type ParallelOptions = Drivers.ParallelOptions
+export type Cue = Cue.Cue
+export type Ictx = Cue.Ictx
 
 return {
 	Kinds = Kinds,
@@ -29,6 +32,7 @@ return {
 	Phase = Phase,
 	Drivers = Drivers,
 	Wire = Wire,
+	Cue = Cue,
 	Stock = {
 		Send = require(script.Stock.Send),
 		Receive = require(script.Stock.Receive),
