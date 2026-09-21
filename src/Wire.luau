@@ -119,7 +119,48 @@ function Wire.known(kind: string): boolean
 	return write[kind] ~= nil or kind == "kind"
 end
 
+-- ---------------------------------------------------------------- storage form
+
+-- The buffer writers above are for bytes on the network. A store holds numbers, strings,
+-- booleans and tables and nothing else, so the same datatypes go in flat, as a list of numbers,
+-- and come back out through `rebuild`. `nameOf` is what a live value is called here.
+local flatten: { [string]: (value: any) -> { number } } = {}
+local rebuild: { [string]: (numbers: { number }) -> any } = {}
+
+flatten.vector3 = function(v: Vector3)
+	return { v.X, v.Y, v.Z }
+end
+rebuild.vector3 = function(n)
+	return Vector3.new(n[1], n[2], n[3])
+end
+flatten.color3 = function(v: Color3)
+	return { v.R, v.G, v.B }
+end
+rebuild.color3 = function(n)
+	return Color3.new(n[1], n[2], n[3])
+end
+-- a CFrame goes in whole, all twelve components, since a store is not short of room and a
+-- rotation that comes back rounded is a rotation that drifts every time it is saved
+flatten.cframe = function(v: CFrame)
+	return { v:GetComponents() }
+end
+rebuild.cframe = function(n)
+	return CFrame.new(n[1], n[2], n[3], n[4], n[5], n[6], n[7], n[8], n[9], n[10], n[11], n[12])
+end
+
+local named: { [string]: string } = {
+	Vector3 = "vector3",
+	Color3 = "color3",
+	CFrame = "cframe",
+}
+
+function Wire.nameOf(value: any): string?
+	return named[typeof(value)]
+end
+
 Wire.write = write
 Wire.read = read
+Wire.flatten = flatten
+Wire.rebuild = rebuild
 
 return Wire
