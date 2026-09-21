@@ -1,4 +1,4 @@
-# Beef core: records, shared state, replication, and the stock controllers
+# Beef core: records, shared state, replication, cue, and the stock controllers
 
 What Beef becomes after this change, and the order it is built in. Nothing here is built yet.
 Written 2026-09-21 from the design conversation; the decisions are the owner's, the wording is
@@ -11,8 +11,8 @@ Beef has two kinds of thing in it.
 **Core** is what every game needs and does one way. The ECS is core because two controllers
 written by two people must share one entity framework or they cannot be used together. Events
 are core for the same reason. After this change, so are persistence, cross-server live state,
-and replication, because every game has them and there is nothing game-specific in how a table
-is saved or a push is sent.
+replication, and authored content, because every game has them and there is nothing
+game-specific in how a table is saved, a push is sent, or a content table is checked and run.
 
 **Stock** is a default most games take and any game can replace: input, movement, camera,
 sound, screens, music. Each is a controller, `{ name, boot, pre, loop, post, reads }`, reading
@@ -23,7 +23,8 @@ Today `Beef.Stock` holds `Send`, `Receive`, `Publish`, `Apply`. Those are replic
 not optional, so they move into core under `Replicate`, and `Stock` becomes the controllers.
 
 Core after this: `Kinds`, `Components`, `Events`, `Phase`, `Drivers`, `Wire`, `Replicate`,
-`Records`, `Shared`. Declarations stay pure: an Event is a name and columns, a Component is a
+`Records`, `Shared`, `Cue`. Tether and Cue are the two libraries that move in; nothing else
+from before Beef is ported. Declarations stay pure: an Event is a name and columns, a Component is a
 column, and neither says where it goes or whether it is saved. Where it goes is one table at
 boot. Whether it is saved is a record, a separate thing from the ECS.
 
@@ -167,26 +168,53 @@ handle, key)` and `Replicate.want(keys)` are the interest calls. Things nobody o
 in the same lap and the same loop as local damage. The relay stays in the Tether repo; Beef
 carries the client and the Lune rig that talks to it.
 
+## Cue
+
+Cue moves in whole, as `Beef.Cue`. It is the content layer: the game declares a vocabulary
+(types, keys, fields, anchors, primitives, gates, schedules, outcomes), content is plain tables
+written in that vocabulary, `define` checks every name and folds every constant at load,
+`attach` puts a definition on an entity, and firing an anchor runs what subscribed. Values,
+refusals, sequences, transforms, scheduling, granting, `stats`, and `reference` are unchanged;
+its guide and spec come across under `docs/cue/`, and nothing about how content is written
+changes.
+
+What changes is the seam, because Beef is the storage Cue was built to plug into:
+
+- The adapter goes. An entity is a Beef handle. A field names its column,
+  `cue:field("hp", { component = Health })`, so `self.hp` is a Component read and a primitive's
+  write is a Component write. The number Cue keeps per entity is a `cue` Component Beef
+  declares, added to any Kind that carries content. `alive` is whether the handle is live.
+- An anchor can be an Event. `cue:anchor("Hit", { event = Hit })` binds the name to a declared
+  Event whose columns are the context; every push to `Hit` is a firing on the handle in its
+  entity column, run by Cue's runner, a controller with that Event in `reads`. `cue:fire` stays
+  for a firing the game makes directly, with a scope, the way it does today.
+- A primitive can name an Event: `cue:primitive("hurt", { event = Hurt, ... })` pushes its
+  resolved, post-transform arguments to `Hurt` after `apply` returns true. That replaces
+  `observe`: whatever wants to hear that a hurt happened lists `Hurt` in `reads`.
+- `step` is the runner's loop and `tick` runs there; `start` goes, since `Phase` is the clock.
+- The suite comes across and runs headless under Lune, since with the adapter gone there is
+  nothing Roblox left in it.
+
 ## Stock
 
-`src/Stock/<name>.luau`, each a controller with a headless suite and a page in `docs/`. Each
-exists already as its own library from before Beef; bringing one into controller shape means
-it reads and writes Beef Events and Components and holds no state of its own outside them.
-What each reads and writes is fixed here; how it does it is the ticket's.
+`src/Stock/<name>.luau`, each a controller with a headless suite and a page in `docs/`, written
+against Beef from the start: it reads and writes Beef Events and Components and holds no state
+of its own outside them. What each reads and writes is fixed here; how it does it is the
+ticket's.
 
-- **Input**, from Nerve. Reads the engine. Writes `Action` events: name, phase, value, device.
+- **Input**. Reads the engine. Writes `Action` events: name, phase, value, device.
   Buffers, sequences, holds and chords on top of the Input Action System.
-- **Movement**, from Tread. Reads `Action` and a body's granted moves. Writes velocity into the
+- **Movement**. Reads `Action` and a body's granted moves. Writes velocity into the
   Components a game names. Ships no physics opinion.
-- **Camera**, from Lens. Reads a Transform and the effects a game pushes as Events. Writes the
+- **Camera**. Reads a Transform and the effects a game pushes as Events. Writes the
   camera. Modes, per-mode constraints, effects on top, aim readable underneath.
-- **Sound**, from Muffle. Reads the Events a game maps to sounds, in a table given at boot the
+- **Sound**. Reads the Events a game maps to sounds, in a table given at boot the
   way `Replicate` is. Writes nothing back; it owns every Sound instance on the client, spatial
   placement, occlusion, mixing, the voice budget, and who is told a sound happened. The thing
   that fires the Event never touches audio.
-- **Screens**, from Stage. Reads `Action` for focus and back. Writes which screen holds input
+- **Screens**. Reads `Action` for focus and back. Writes which screen holds input
   and what that suppresses, as Components, and lays a declared screen out on the viewport.
-- **Music**, new. One stream with states, crossfade, ducking when Sound asks. Reads the state
+- **Music**. One stream with states, crossfade, ducking when Sound asks. Reads the state
   changes a game pushes; writes nothing.
 
 ## Tests
@@ -202,7 +230,10 @@ rig. A test that needs Studio for something Lune could have covered is a driver 
 3. **Replicate.** The boot table over today's four functions; `Stock` emptied of them.
 4. **Fleet.** Tether's client under `Replicate`, its declarations folded into the table, the
    Lune rig brought across. Tether's repo keeps the relay.
-5. **Stock.** Input first, then Movement, since it reads Actions; Camera, Sound, Screens and
+5. **Cue.** Moved in whole: the adapter replaced by Components, anchors and primitives bound
+   to Events, the runner a controller, the suite under Lune. It touches only Kinds, Components
+   and Events, so it can be built alongside any of the four above.
+6. **Stock.** Input first, then Movement, since it reads Actions; Camera, Sound, Screens and
    Music in parallel after those two show the shape.
 
 Each is one ticket, one worktree, one branch into `master`, built by an agent that reads this
