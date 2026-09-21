@@ -188,19 +188,26 @@ What changes is the seam, because Beef is the storage Cue was built to plug into
   to a declared Event whose columns are the context; every push to `Hit` is a firing on the
   handle in the named column. `cue:fire` stays for a firing the game makes directly with a
   scope, the way it does today.
-- A primitive is an Event. `cue:primitive("hurt", { takes = { ... }, event = Hurt })` is the
-  whole declaration: an invocation, resolved and transformed, is one push to `Hurt`. The work
-  is a controller with `Hurt` in `reads`, over columns in its loop, the same shape as any
-  other. There is no `apply` and nothing runs per invocation but the push, so `observe` goes
-  too: whatever wants to know a hurt happened reads `Hurt`. A primitive that can refuse
-  declares `refuses` and a `refuse(args...)` that reads what it must and returns the label, so
-  a sequence still stops at its first refusal in the same loop; most primitives declare
-  neither.
-- Cue's runner is a controller, `{ Cue.Runner, cue }` in a Phase, with every bound anchor in
-  `reads`. Its loop walks each anchor's pushes: read `Cue.Attached` on `self`, resolve the
-  subscribed effects, apply the transforms found on the participants, push. Scheduling
-  (`after`, `every`, `over`, `once`, `lasts`) is the runner's queue stepped in that loop
-  against the phase's clock, and `tick` runs there. `start` goes; `Phase` is the clock.
+- A primitive is an Event with two answers. `cue:primitive("take", { takes = { ... }, event =
+  Take, returns = "entity" })` declares `Take`, `Take.done`, and `Take.refused`. An invocation,
+  resolved and transformed, is one push to `Take`, and the runner never reads a column to
+  make it. The controller with `Take` in `reads` does the work over every push at once and
+  answers each one: `done` with the result columns when there is a `returns`, or `refused`
+  with the label. There is no `apply`, no `refuse`, and no `observe`: whatever wants to know a
+  take happened reads `Take.done`.
+- A sequence runs in the loop. Every push to a primitive carries a `seq` column, and so does
+  its answer. The runner pushes the first step; the step's controller answers in the same
+  pass or the next; the runner reads the answer, binds `as` from a `done`, and pushes the
+  next step, or on a `refused` pushes the `otherwise` and stops. The passes keep going while
+  something moved, so a whole sequence resolves inside one frame with no step running before
+  the one before it answered, and nothing walked by hand. A bare list pushes every step at
+  once.
+- Cue's runner is a controller, `{ Cue.Runner, cue }` in a Phase, with every bound anchor and
+  every primitive's answers in `reads`. Its loop walks each anchor's pushes: read
+  `Cue.Attached` on `self`, resolve the subscribed effects, apply the transforms found on the
+  participants, push. Scheduling (`after`, `every`, `once`, `lasts`) is the runner's queue
+  stepped in that loop against the phase's clock; `over` and `per` are columns the reading
+  controller spreads, so `tick` goes. `start` goes; `Phase` is the clock.
 - The suite comes across and runs headless under Lune with `Vector3` from `@lune/roblox`,
   since with the adapter gone there is nothing else Roblox in it.
 
