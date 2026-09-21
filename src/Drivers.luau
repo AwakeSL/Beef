@@ -51,6 +51,17 @@ local function hook(name: string): Hook
 	return h
 end
 
+-- the two edges of a signal's frame: `before` runs ahead of every phase on it, `after` behind all of them.
+-- Replicate delivers what arrived on the before edge and packs what the phases pushed on the after edge, the
+-- way the parallel driver collects and sends around the same phases
+function Drivers.before(signal: string, fn: () -> ())
+	table.insert(hook(signal).before, fn)
+end
+
+function Drivers.after(signal: string, fn: () -> ())
+	table.insert(hook(signal).after, fn)
+end
+
 -- each phase runs on its RunService signal; the frame time arrives as `phase.dt` for controllers that integrate
 function Drivers.events(phases: { [string]: Phase.Phase })
 	for event, phase in phases do
@@ -298,7 +309,7 @@ function Drivers.parallel(options: ParallelOptions): Parallel
 		lastDt = dt
 	end)
 
-	table.insert(hook(options.collect or "Heartbeat").before, function()
+	Drivers.before(options.collect or "Heartbeat", function()
 		local t0 = os.clock()
 		for w = 1, options.workers do
 			local key = "result" .. w
@@ -336,7 +347,7 @@ function Drivers.parallel(options: ParallelOptions): Parallel
 	end)
 
 	local gcBefore = gcinfo()
-	table.insert(hook(options.send or "PreSimulation").after, function()
+	Drivers.after(options.send or "PreSimulation", function()
 		local t0 = os.clock()
 		local gcNow = gcinfo()
 		if gcNow > gcBefore then
