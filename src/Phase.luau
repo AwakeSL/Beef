@@ -170,7 +170,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 		end
 		table.clear(boot)
 		while true do
-			-- pre sees every row pushed since the previous frame's pre; a lap moves the rows, so the window is taken fresh
+			-- pre sees every push since the previous frame's pre; a lap moves the pushes, so the window is taken fresh
 			for i = 1, m do
 				preCursors[i] = buffers[i].freeze(preCursors[i])
 			end
@@ -289,7 +289,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 	local function silent() end
 
 	-- rewind one entity to `from`, then run the loop stage over each retained lap stamped after it up to `to`
-	-- an event type that names its entity column is stepped one matching row at a time; one without is replayed whole
+	-- an event type that names its entity column is stepped one matching push at a time; one without is replayed whole
 	-- pushes made by this phase's controllers are dropped for the duration
 	local savedFrom: { number } = {}
 	local savedLast: { number } = {}
@@ -348,9 +348,9 @@ function Phase.new(name: string, entries: { Entry }): Phase
 				end
 				local column = buffer.entity and buffer[buffer.entity]
 				if column then
-					for row = f, l do
-						if column[row] == handle then
-							buffer.from, buffer.last = row, row
+					for i = f, l do
+						if column[i] == handle then
+							buffer.from, buffer.last = i, i
 							for j = 1, nloop do
 								loop[j]()
 							end

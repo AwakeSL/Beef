@@ -92,8 +92,8 @@ export type ParallelOptions = {
 	workers: number,
 	phase: ModuleScript,          -- required inside each actor; returns the worker-side wiring (see Stock/Worker)
 	ship: { any },                -- the kind first, then the components that cross each frame (all must have wire types)
-	events: { any }?,             -- event types whose rows cross each frame
-	back: { any },                -- event types the worker phase pushes into; their rows land here at `collect`
+	events: { any }?,             -- event types whose pushes cross each frame
+	back: { any },                -- event types the worker phase pushes into; their pushes land here at `collect`
 	send: string?,                -- RunService signal to pack and send on, PreSimulation by default
 	collect: string?,             -- RunService signal to deliver results on, Heartbeat by default
 }
@@ -186,7 +186,7 @@ local function packKind(kind: any, components: { any }): string
 	return buffer.tostring(b)
 end
 
--- pack this lap's rows of an event type: u32 count then each column in wire form
+-- pack this lap's pushes of an event type: u32 count then each column in wire form
 local function packEvents(buffer_: any, from: number, last: number): string
 	local count = math.max(0, last - from + 1)
 	local size = 4
@@ -213,7 +213,7 @@ local function packEvents(buffer_: any, from: number, last: number): string
 	return buffer.tostring(b)
 end
 
--- unpack rows packed by packEvents into an event type with the same columns
+-- unpack pushes packed by packEvents into an event type with the same columns
 local function unpackEvents(s: string, buffer_: any)
 	local b = buffer.fromstring(s)
 	local count = buffer.readu32(b, 0)

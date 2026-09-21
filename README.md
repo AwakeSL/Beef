@@ -34,7 +34,7 @@ local Position = Components.new("position", { wire = "vector3" })
 local Velocity = Components.new("velocity", { wire = "vector3" })
 local Drop = Kinds.new("drop", Position, Velocity)
 
--- events are rows with typed columns
+-- an event is a name and typed columns; a push is one entry across them
 local Landing = Events.new("landing", "handle:u32", "x:f32", "y:f32", "z:f32")
 
 -- a controller is a function that returns a table with a stage or two

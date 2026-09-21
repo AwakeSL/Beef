@@ -97,7 +97,7 @@ local function bookkeeping(name: string, names: { string }, wire: { [string]: st
 		buffer.lapStart = buffer.count + 1
 	end
 
-	-- retained closed laps, oldest first: how many, and the k-th one's window (rows from, last) and stamp
+	-- retained closed laps, oldest first: how many, and the k-th one's window (pushes from, last) and stamp
 	buffer.laps = function(): number
 		return closed
 	end
@@ -113,7 +113,7 @@ local function bookkeeping(name: string, names: { string }, wire: { [string]: st
 		return from, last, times[i]
 	end
 
-	-- first row of the oldest retained lap stamped at or after time, and whether every lap since then is still held
+	-- first push of the oldest retained lap stamped at or after time, and whether every lap since then is still held
 	buffer.since = function(time: number): (number, boolean)
 		for k = closed, 1, -1 do
 			local i = (head - k) % keep + 1

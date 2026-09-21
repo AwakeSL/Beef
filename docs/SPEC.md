@@ -12,7 +12,7 @@ Beef has two kinds of thing in it.
 written by two people must share one entity framework or they cannot be used together. Events
 are core for the same reason. After this change, so are persistence, cross-server live state,
 and replication, because every game has them and there is nothing game-specific in how a table
-is saved or a row is sent.
+is saved or a push is sent.
 
 **Stock** is a default most games take and any game can replace: input, movement, camera,
 sound, screens, music. Each is a controller, `{ name, boot, pre, loop, post, reads }`, reading
