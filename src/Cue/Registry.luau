@@ -205,20 +205,17 @@ function Registry.declareField(self: Registry, name: string, decl: any)
 		table.freeze({ name = name, type = decl.type, component = decl.component, means = decl.means })
 end
 
--- an Event keeps its own bookkeeping on the table that holds its columns, so a column named after
--- one of those fields shadows it and the Phase reads a column array where it wanted a number; the
--- clash is caught at declaration rather than a frame later
+-- Beef.Events.new already refuses a column that shadows one of the Buffer's own fields, so this
+-- only needs to guard the fields a primitive adds onto the event afterward: `event.done` and
+-- `event.refused` answer for it, and a column of either name would shadow that answer a frame later
 local RESERVED: { [string]: boolean } = {
-	name = true, columns = true, wire = true, count = true, base = true, lapStart = true,
-	from = true, last = true, walked = true, lost = true, unread = true, keep = true,
-	entity = true, push = true, freeze = true, lap = true, since = true, laps = true,
-	lapWindow = true, done = true, refused = true,
+	done = true, refused = true,
 }
 
 local function checkColumns(site: string, event: any)
 	for _, column in event.columns do
 		if RESERVED[column] then
-			fail(site, ("the event has a column %q, which is one of an Event's own fields; rename the column or the key"):format(column))
+			fail(site, ("the event has a column %q, which a primitive uses to answer it; rename the column or the key"):format(column))
 		end
 	end
 end
