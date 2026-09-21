@@ -317,7 +317,7 @@ return function(action: any, bindings: { [string]: any }, chosen: Driver?): any
 					bufferUntil[name] = nil
 				end
 			end
-			for s, sequence in sequences do
+			for s = 1, #sequences do
 				if seqAt[s] > 0 and now > seqBy[s] then
 					seqAt[s] = 0
 				end

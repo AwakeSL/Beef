@@ -174,6 +174,7 @@ local Engine = {
 		local Players = game:GetService("Players")
 		local RunService = game:GetService("RunService")
 		assert(RunService:IsClient(), "Input: the stock input controller is a client controller")
+		assert(input == nil, "Input: the engine is bound once; a second Input controller needs its own driver")
 		input = game:GetService("UserInputService")
 
 		local made = Instance.new("InputContext")
