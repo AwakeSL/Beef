@@ -90,7 +90,10 @@ return function(T)
 	T.case("Beef exports Replicate and no longer holds the four under Stock", function()
 		local Beef = T.load()
 		T.ok(Beef.Replicate ~= nil, "Beef.Replicate")
-		T.eq(Beef.Stock, nil, "Beef.Stock is gone")
+		-- Stock is the controllers now; replication is not optional, so none of the four is there
+		for _, name in { "Send", "Receive", "Publish", "Apply" } do
+			T.eq(Beef.Stock[name], nil, "Beef.Stock." .. name .. " is gone")
+		end
 		T.eq(type(Beef.Replicate.driver), "function", "Replicate.driver")
 		T.eq(type(Beef.Replicate.stats), "function", "Replicate.stats")
 	end)

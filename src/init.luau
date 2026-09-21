@@ -9,6 +9,7 @@ local Drivers = require(script.Drivers)
 local Wire = require(script.Wire)
 local Records = require(script.Records)
 local Replicate = require(script.Replicate)
+local Stock = require(script.Stock)
 
 export type Kind = Kinds.Kind
 export type KindOptions = Kinds.Options
@@ -32,6 +33,9 @@ export type ReplicateOptions = Replicate.Options
 export type ReplicateStats = Replicate.Stats
 export type ReplicateDriver = Replicate.Driver
 export type Wiring = Replicate.Wiring
+export type Declared = Stock.Declared
+export type Edge = Stock.Edge
+export type InputDriver = Stock.InputDriver
 
 return {
 	Kinds = Kinds,
@@ -42,4 +46,5 @@ return {
 	Wire = Wire,
 	Records = Records,
 	Replicate = Replicate,
+	Stock = Stock,
 }
