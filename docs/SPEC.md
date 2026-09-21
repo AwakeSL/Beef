@@ -50,8 +50,10 @@ runs them in order from the stored version to the declared one. Stored data newe
 refuses to load, since the code cannot know what it would be overwriting.
 
 `Profile.load(key)` takes the lock and loads; `Profile.release(key)` saves and lets go. That is
-the whole lifecycle, the same for every key. A game loads a player's record from its own join
-code and releases it on leave, and decides for itself whether a player whose load failed stays.
+the whole lifecycle, the same for every key. `Beef.Records.players(Profile)` is the one
+convenience: it connects `PlayerAdded` to `load(userId)` and `PlayerRemoving` to
+`release(userId)` for that record and nothing more. Whether a player whose load failed stays is
+the game's, read off `Profile.failed`.
 
 ### Keys
 
