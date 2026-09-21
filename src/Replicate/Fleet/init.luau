@@ -390,18 +390,21 @@ function Fleet.build(ctx: any, config: Config)
 		end
 	end
 
+	-- the entity an arrival is about is whatever carries that id here, whatever kind it is. A mirror of another
+	-- server's creature is usually a kind of its own, outside `fleet.kinds` so it mints nothing of its own, and
+	-- the columns are the contract rather than the kind.
 	local function applyPublish(entry: any, subject: number, values: { any }): boolean
 		local found, handle = Fleet.id.find(subject)
-		if found ~= entry.kind or handle == nil then
+		if found == nil or handle == nil then
 			return false
 		end
-		local n = entry.kind.at(handle)
+		local n = found.at(handle)
 		if n == nil then
 			return false
 		end
 		local components = entry.components
 		for c = 1, entry.width do
-			components[c].add(entry.kind, n, values[c])
+			components[c].add(found, n, values[c])
 		end
 		counts.applied += entry.width
 		return true
@@ -452,8 +455,8 @@ function Fleet.build(ctx: any, config: Config)
 			local values = inbound.values :: { any }
 			local binding = eventOf[message]
 			if binding ~= nil then
-				local found, handle = Fleet.id.find(inbound.subject)
-				if found ~= binding.kind or handle == nil then
+				local _, handle = Fleet.id.find(inbound.subject)
+				if handle == nil then
 					-- nothing here carries that id, so there is no entity for the push to be about. It is
 					-- counted and dropped rather than held: a hit is worth nothing once it is late
 					counts.unmatched += 1
