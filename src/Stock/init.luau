@@ -4,8 +4,9 @@
 -- Events and Components and nothing else, so a game that writes its own against the same ones drops it in
 -- where the stock one was. `Action` is the vocabulary they share; the controllers hang off it.
 --
--- Input and Movement are here. Camera, Sound, Screens and Music are the tickets after them and land
--- beside them, one file or one folder each, added to the table at the bottom and to nothing else.
+-- All six are here: Input, Movement, Camera, Sound, Screens and Music, one file or one folder each. Every
+-- one that touches the engine does so through a driver, and the headless driver for each is exported at
+-- the bottom so a game tests its own controllers against the stock ones with no Roblox in the loop.
 
 local Action = require(script.Action)
 local Camera = require(script.Camera)

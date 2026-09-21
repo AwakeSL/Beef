@@ -152,6 +152,29 @@ clock the test moves by hand where the service was, so all of it runs headless.
 plain tables written in it, and every verb asks on an Event that one of your controllers
 answers. `cue:entry()` is its place in a phase. See `docs/cue/Guide.md`.
 
+## Stock
+
+Six controllers most games take and any game replaces, each reading and writing Beef Events and
+Components and nothing else. They share one Event, `Beef.Stock.Action`, which Input writes and
+Movement and Screens read.
+
+```luau
+local Stock = Beef.Stock
+
+local heartbeat = Beef.Phase.new("Heartbeat", {
+	{ Stock.Input, Stock.Action, bindings },
+	{ Stock.Movement, Stock.Action, Body, Velocity, moves },
+	{ Stock.Screens, Stock.Action, Focus, screens },
+	{ Stock.Camera, Transform, Effect, View, modes },
+	{ Stock.Sound, map },
+	{ Stock.Music, State, tracks, Stock.Duck },
+})
+```
+
+Each one that touches the engine does so through a driver, and a headless driver for each is on
+`Beef.Stock` (`feed`, `film`, `speaker`, `shown`, `tape`) so a game tests its own controllers
+against the stock ones with no Roblox in the loop. One page per controller in `docs/stock/`.
+
 ## Demo
 
 ```

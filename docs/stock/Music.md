@@ -50,9 +50,9 @@ say.
 | `lasts`  | `f32` | seconds it stays down                           |
 
 It is the third thing handed to the factory and a game with no Sound in it leaves it out. Sound
-declares it, so `Beef.Stock.Duck` lands with Sound; a checkout without Sound in it yet passes an
-Event of the game's own with those two columns, or nothing at all. Music never pushes it: Sound owns
-that seam and decides which sounds are worth getting the music out of the way for.
+declares it as `Beef.Stock.Duck`; a game can pass an Event of its own with those two columns
+instead. Music never pushes it: Sound owns that seam and decides which sounds are worth getting
+the music out of the way for.
 
 ## What it writes
 
