@@ -139,3 +139,22 @@ rojo serve rain.project.json
 lune run scripts/test
 selene src test demo
 ```
+
+`scripts/test` runs every spec under `test/` headless, Beef loaded out of `src/` by
+`scripts/loader` with a stand-in `script` and inert Roblox globals. The fleet is covered there
+against a relay written in Luau, which is bytes in and bytes out like the real one.
+
+To prove the same edges against the relay a live game talks to, build and start it out of
+Tether's repo and run the live rig:
+
+```
+cargo build --release --manifest-path <tether>/relay/Cargo.toml
+TETHER_PORT=47831 <tether>/relay/target/release/tether-relay
+lune run scripts/live
+```
+
+It stands up two whole Beefs over real HTTP and checks a block of ids granted, a place and a
+want, a moving column crossing and collapsing to one entry a flush, a push landing in the other
+server's Event buffer with its age, a release, an adopt, and two servers claiming the same
+subject with exactly one winner. It exits 1 on any failure and prints the relay's own `/state`
+either way.
