@@ -8,6 +8,7 @@ local Phase = require(script.Phase)
 local Drivers = require(script.Drivers)
 local Wire = require(script.Wire)
 local Records = require(script.Records)
+local Replicate = require(script.Replicate)
 
 export type Kind = Kinds.Kind
 export type KindOptions = Kinds.Options
@@ -26,6 +27,11 @@ export type Record = Records.Record
 export type RecordOptions = Records.Options
 export type RecordDriver = Records.Driver
 export type RecordWorld = Records.World
+export type ReplicateMap = Replicate.Map
+export type ReplicateOptions = Replicate.Options
+export type ReplicateStats = Replicate.Stats
+export type ReplicateDriver = Replicate.Driver
+export type Wiring = Replicate.Wiring
 
 return {
 	Kinds = Kinds,
@@ -35,10 +41,5 @@ return {
 	Drivers = Drivers,
 	Wire = Wire,
 	Records = Records,
-	Stock = {
-		Send = require(script.Stock.Send),
-		Receive = require(script.Stock.Receive),
-		Publish = require(script.Stock.Publish),
-		Apply = require(script.Stock.Apply),
-	},
+	Replicate = Replicate,
 }

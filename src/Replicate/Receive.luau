@@ -1,16 +1,18 @@
 --!strict
 --!optimize 2
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- the unpacking end of a stream: what Send packed arrives here and is pushed into the same event types, column
+-- by column, before any phase on the signal runs. Payloads land whenever the engine hands them over and wait
+-- in a list; the `pre` stage drains it, so a push crosses once and lands in one frame.
 
 local Wire = require(script.Parent.Parent.Wire)
+local Remotes = require(script.Parent.Remotes)
 
 type Buffer = { name: string, columns: { string }, wire: { [string]: string }, push: (...any) -> () }
 type Named = { [string]: any }
 
-return function(remoteName: string, into: { [string]: Buffer }, named: Named)
+return function(linkName: string, link: Remotes.Link, into: { [string]: Buffer }, named: Named)
 	local pending: { buffer } = {}
-	local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild(remoteName) :: RemoteEvent
-	remote.OnClientEvent:Connect(function(payload: buffer)
+	link.receive(function(payload: buffer)
 		table.insert(pending, payload)
 	end)
 
@@ -23,14 +25,20 @@ return function(remoteName: string, into: { [string]: Buffer }, named: Named)
 	local kindNames: { string } = {}
 	local columnValues: { { any } } = {}
 	local args = {}
+	local complained: { [string]: boolean } = {}
 
 	local self: { [string]: any }
 	self = {
 		name = "Receive",
+		link = linkName,
 		writes = writes,
+		received = 0,
+		pushes = 0,
 		bytes = 0,
+		dropped = 0,
 		pre = function()
 			for _, b in pending do
+				self.received += 1
 				self.bytes += buffer.len(b)
 				local at = 0
 				table.clear(kindNames)
@@ -49,8 +57,18 @@ return function(remoteName: string, into: { [string]: Buffer }, named: Named)
 					local count = buffer.readu32(b, at)
 					at += 4
 					local target = into[name]
-					local columns = target and target.columns
-					local width = columns and #columns or 0
+					if not target then
+						-- the two ends were given different tables. nothing here knows how wide this event type
+						-- is, so the rest of the payload cannot be walked past it: say so once and drop it
+						if not complained[name] then
+							complained[name] = true
+							warn(("Replicate %s: nothing here reads %s; the boot table differs across the two sides"):format(linkName, name))
+						end
+						self.dropped += 1
+						break
+					end
+					local columns = target.columns
+					local width = #columns
 					for c = 1, width do
 						local kind = target.wire[columns[c]]
 						local values = columnValues[c] or {}
@@ -67,14 +85,13 @@ return function(remoteName: string, into: { [string]: Buffer }, named: Named)
 							end
 						end
 					end
-					if target then
-						for i = 1, count do
-							for c = 1, width do
-								args[c] = columnValues[c][i]
-							end
-							target.push(table.unpack(args, 1, width))
+					for i = 1, count do
+						for c = 1, width do
+							args[c] = columnValues[c][i]
 						end
+						target.push(table.unpack(args, 1, width))
 					end
+					self.pushes += count
 				end
 			end
 			table.clear(pending)
