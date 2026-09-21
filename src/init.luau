@@ -11,6 +11,7 @@ local Records = require(script.Records)
 local Replicate = require(script.Replicate)
 local Shared = require(script.Shared)
 local Stock = require(script.Stock)
+local Cue = require(script.Cue)
 
 export type Kind = Kinds.Kind
 export type KindOptions = Kinds.Options
@@ -41,6 +42,8 @@ export type SharedStats = Shared.Stats
 export type Declared = Stock.Declared
 export type Edge = Stock.Edge
 export type InputDriver = Stock.InputDriver
+export type Cue = Cue.Cue
+export type Ictx = Cue.Ictx
 
 return {
 	Kinds = Kinds,
@@ -53,4 +56,5 @@ return {
 	Replicate = Replicate,
 	Shared = Shared,
 	Stock = Stock,
+	Cue = Cue,
 }

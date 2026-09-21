@@ -148,6 +148,10 @@ hundred and twenty a player a minute; a call over budget is held and counted in
 `Beef.Shared.stats()`, never dropped. `Beef.Shared.driver(Beef.Shared.tables())` puts tables and a
 clock the test moves by hand where the service was, so all of it runs headless.
 
+`Beef.Cue` is authored content, compiled and run: a game declares its vocabulary, content is
+plain tables written in it, and every verb asks on an Event that one of your controllers
+answers. `cue:entry()` is its place in a phase. See `docs/cue/Guide.md`.
+
 ## Demo
 
 ```
