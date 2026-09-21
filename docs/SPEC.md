@@ -181,19 +181,28 @@ changes.
 What changes is the seam, because Beef is the storage Cue was built to plug into:
 
 - The adapter goes. An entity is a Beef handle. A field names its column,
-  `cue:field("hp", { component = Health })`, so `self.hp` is a Component read and a primitive's
-  write is a Component write. The number Cue keeps per entity is a `cue` Component Beef
-  declares, added to any Kind that carries content. `alive` is whether the handle is live.
-- An anchor can be an Event. `cue:anchor("Hit", { event = Hit })` binds the name to a declared
-  Event whose columns are the context; every push to `Hit` is a firing on the handle in its
-  entity column, run by Cue's runner, a controller with that Event in `reads`. `cue:fire` stays
-  for a firing the game makes directly, with a scope, the way it does today.
-- A primitive can name an Event: `cue:primitive("hurt", { event = Hurt, ... })` pushes its
-  resolved, post-transform arguments to `Hurt` after `apply` returns true. That replaces
-  `observe`: whatever wants to hear that a hurt happened lists `Hurt` in `reads`.
-- `step` is the runner's loop and `tick` runs there; `start` goes, since `Phase` is the clock.
-- The suite comes across and runs headless under Lune, since with the adapter gone there is
-  nothing Roblox left in it.
+  `cue:field("hp", { type = "amount", component = Health })`, so `self.hp` compiles at `define`
+  to one index into that column. The number Cue keeps per entity is `Cue.Attached`, a
+  Component added to any Kind that carries content. `alive` is whether the handle is live.
+- An anchor can be an Event. `cue:anchor("Hit", { event = Hit, self = "self" })` binds the name
+  to a declared Event whose columns are the context; every push to `Hit` is a firing on the
+  handle in the named column. `cue:fire` stays for a firing the game makes directly with a
+  scope, the way it does today.
+- A primitive is an Event. `cue:primitive("hurt", { takes = { ... }, event = Hurt })` is the
+  whole declaration: an invocation, resolved and transformed, is one push to `Hurt`. The work
+  is a controller with `Hurt` in `reads`, over columns in its loop, the same shape as any
+  other. There is no `apply` and nothing runs per invocation but the push, so `observe` goes
+  too: whatever wants to know a hurt happened reads `Hurt`. A primitive that can refuse
+  declares `refuses` and a `refuse(args...)` that reads what it must and returns the label, so
+  a sequence still stops at its first refusal in the same loop; most primitives declare
+  neither.
+- Cue's runner is a controller, `{ Cue.Runner, cue }` in a Phase, with every bound anchor in
+  `reads`. Its loop walks each anchor's pushes: read `Cue.Attached` on `self`, resolve the
+  subscribed effects, apply the transforms found on the participants, push. Scheduling
+  (`after`, `every`, `over`, `once`, `lasts`) is the runner's queue stepped in that loop
+  against the phase's clock, and `tick` runs there. `start` goes; `Phase` is the clock.
+- The suite comes across and runs headless under Lune with `Vector3` from `@lune/roblox`,
+  since with the adapter gone there is nothing else Roblox in it.
 
 ## Stock
 
