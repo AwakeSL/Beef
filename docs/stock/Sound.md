@@ -43,12 +43,10 @@ a game swaps this controller for its own.
 
 Every Event in the map, and nothing else. It runs on the client.
 
-Its Events arrive inside the map rather than as arguments to the phase entry, so the phase does not
-know them and does not move a window over them the way it does for a controller handed its Event.
-This one keeps its own place in each of them, reads every push since its own last frame, and leaves
-the Event's own window exactly where it found it. A controller in the same phase that was handed
-the same Event reads what the phase gave it, untouched. The cost is that `phase.describe()` names
-the controller but not the Events it listens to.
+Its Events arrive inside the map rather than as arguments to the phase entry, and the controller
+lists every one of them in `reads`, so the phase freezes a window over each the way it does for a
+controller handed its Event. It reads `from` to `last` like anything else, and `phase.describe()`
+names the Events it listens to.
 
 ## What it writes
 
