@@ -26,6 +26,7 @@ Cue.Attached = Attached.component
 -- an entity is a Beef handle with its kind folded in, so one number says which kind and which
 -- handle wherever a value, a column or a binding carries it
 Cue.entity = Entity.of
+Cue.is = Entity.is
 Cue.kind = Entity.kind
 Cue.handle = Entity.handle
 Cue.read = Entity.read

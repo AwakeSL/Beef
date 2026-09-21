@@ -88,6 +88,10 @@ reads and writes.
 `Beef.Stock` has `Send`/`Receive` for events and `Publish`/`Apply` for columns over the
 network, and `Drivers.parallel` runs a phase across Actors. See the demo for all of them.
 
+`Beef.Cue` is authored content, compiled and run: a game declares its vocabulary, content is
+plain tables written in it, and every verb asks on an Event that one of your controllers
+answers. `cue:entry()` is its place in a phase. See `docs/cue/Guide.md`.
+
 ## Demo
 
 ```
