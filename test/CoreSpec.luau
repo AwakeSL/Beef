@@ -4,7 +4,7 @@
 return function(T)
 	T.case("Beef loads with every core module", function()
 		local Beef = T.load()
-		for _, name in { "Kinds", "Components", "Events", "Phase", "Drivers", "Wire" } do
+		for _, name in { "Kinds", "Components", "Events", "Phase", "Drivers", "Wire", "Records" } do
 			T.ok(Beef[name] ~= nil, "Beef." .. name)
 		end
 	end)
