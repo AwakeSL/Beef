@@ -211,8 +211,8 @@ What changes is the seam, because Beef is the storage Cue was built to plug into
   something moved, so a whole sequence resolves inside one frame with no step running before
   the one before it answered, and nothing walked by hand. A bare list pushes every step at
   once.
-- Cue's runner is a controller, `{ Cue.Runner, cue }` in a Phase, with every bound anchor and
-  every primitive's answers in `reads`. Its loop walks each anchor's pushes: read
+- Cue's runner is a controller. `cue:entry()` is the Phase entry: `Cue.Runner`, the cue, and
+  every bound anchor and every primitive's answers, so the Phase knows the buffers to freeze. Its loop walks each anchor's pushes: read
   `Cue.Attached` on `self`, resolve the subscribed effects, apply the transforms found on the
   participants, push. Scheduling (`after`, `every`, `once`, `lasts`) is the runner's queue
   stepped in that loop against the phase's clock; `over` and `per` are columns the reading
@@ -227,7 +227,7 @@ against Beef from the start: it reads and writes Beef Events and Components and 
 of its own outside them. What each reads and writes is fixed here; how it does it is the
 ticket's.
 
-- **Input**. Reads the engine. Writes `Action` events: name, phase, value, device.
+- **Input**. Reads the engine. Writes `Action` pushes: action, phase, value, x, y, device.
   Buffers, sequences, holds and chords on top of the Input Action System.
 - **Movement**. Reads `Action` and a body's granted moves. Writes velocity into the
   Components a game names. Ships no physics opinion.
@@ -244,8 +244,12 @@ ticket's.
 
 ## API
 
-The whole surface after this change. `Kinds`, `Components`, `Events`, `Phase`, `Drivers`, and
-`Wire` are as they are today.
+The whole surface as built. `Kinds`, `Components`, `Events`, `Phase`, `Drivers`, and `Wire` are
+as they were, with `Wire` gaining `u64`, `nameOf`, `flatten`, and `rebuild`, `Drivers` gaining
+`before` and `after`, and `Events.new` refusing a column named after one of a buffer's own
+fields. Every controller that touches the engine does so through a driver, and a headless
+driver for each is exported beside it, so a game tests its own controllers against these with
+no Roblox in the loop.
 
 ### Records
 
@@ -270,29 +274,48 @@ Profile.lost                -- "key:string"            lock lost, record now rea
 Profile.failed              -- "key:string", "why:string"
 
 Beef.Records.players(Profile)   -- PlayerAdded -> load(userId), PlayerRemoving -> release(userId)
-Beef.Records.driver(driver)     -- { get, update, release, lock, refresh, unlock }; Lune tables in tests
+Beef.Records.driver(driver)     -- { get, update, release, lock, refresh, unlock, server, now, wait }
+Beef.Records.memory(world)      -- the headless driver: tables and a clock a test moves
+Beef.Records.world()            -- a world two memory drivers share, standing for two servers
+Beef.Records.live()             -- DataStoreService and MemoryStoreService
+Beef.Records.step(now)          -- timed saves and lock refreshes due by now
 Beef.Records.flush()            -- save every held record now; what BindToClose calls
 ```
+
+A record's shape is checked on save, and a record that no longer fits is not saved and fires
+`failed` with why. A Roblox datatype in the shape crosses the store flattened, marked with `$`,
+and comes back rebuilt.
 
 ### Shared
 
 ```luau
-local Ranks   = Beef.Shared.sorted("ranks",   { value = "u32", ttl = 3600, poll = 5 })
+local Ranks   = Beef.Shared.sorted("ranks",   { value = "u32", ttl = 3600, poll = 5, order = "descending" })
 local Lobby   = Beef.Shared.queue("lobby",    { fields = { "userId:u64", "rating:u16" }, ttl = 300, poll = 1 })
 local Auction = Beef.Shared.map("auction",    { fields = { "price:u32", "holder:u64" }, ttl = 600, poll = 2 })
 
-Ranks.set(key, value)  Ranks.get(key)  Ranks.remove(key)  Ranks.range(from, to, count)
+Ranks.set(key, value)  Ranks.get(key)  Ranks.remove(key)  Ranks.range(from, to, count)  Ranks.refresh()
 Ranks.changed          -- Event: "key:string", "value:u32"
+Ranks.removed          -- "key:string"      gone, expired, or fallen out of the poll window
 
 Lobby.add(fields...)   Lobby.read(count)  Lobby.remove(id)
-Lobby.received         -- Event: "id:string", then the declared fields
+Lobby.received         -- Event: "id:string", then the declared fields; the id is the batch's
 
 Auction.set(key, fields...)  Auction.get(key)  Auction.update(key, fn)  Auction.remove(key)
 Auction.changed        -- Event: "key:string", then the declared fields
+Auction.removed        -- "key:string"
 
 Beef.Shared.driver(driver)
-Beef.Shared.stats()    -- units used this minute, calls held waiting for budget
+Beef.Shared.tables()   -- the headless driver: advance, playing, refuse, sizeOf
+Beef.Shared.budget({ base = 1000, per = 120, drain = 60 })
+Beef.Shared.stats()    -- units used this minute, calls held waiting for budget, calls that failed
 ```
+
+Nothing here yields the caller: every call goes on a queue a pump drains on its own thread, and
+the budget holds the head of that queue rather than dropping anything. `get` and `range` read
+the mirror the last poll left, so they cost nothing; a set is visible to `get` as soon as it
+lands and to `range` at the next poll. A change this server made and a change another server
+made arrive through the same Event. Fields are Wire columns; a Roblox datatype is refused.
+Headless, the driver goes in before the first declaration.
 
 ### Replicate
 
@@ -300,27 +323,36 @@ Beef.Shared.stats()    -- units used this minute, calls held waiting for budget
 Beef.Replicate({
 	toClients = { Damage, Spawned, { Landing, channel = "unreliable" } },
 	toServer  = { Input },
-	publish   = { { Transform, every = 2, channel = "unreliable", keyframe = 30, chunk = 64 } },
+	publish   = { { Transform, every = 2, channel = "unreliable", keyframe = 30, chunk = 64, origin = Player } },
 	fleet = {
 		url = "...", identity = token, interval = 0.125, budget = 480,
-		kinds   = { Creature, Player },                       -- get a fleet id column
+		kinds   = { Creature, Player },                       -- get a fleet id, an indexed Component
 		events  = {
-			{ Motion, route = "key", collapse = true, retention = "replace", window = 0.05 },
-			{ Damage, route = "owner" },
+			{ Motion, route = "key", collapse = true, retention = "replace", window = 0.05, subject = Creature },
+			{ Damage, route = "owner", age = "age" },
 		},
 		publish = { { Transform, window = 0.05 } },           -- columns, offered on change
 	},
 })
 
+Beef.Replicate.fleet                      -- the id Component; fleet.find(id) -> kind, handle
 Beef.Replicate.place(kind, handle, key)   -- which relay key this entity lives under
 Beef.Replicate.want(keys)                 -- which keys this server wants to hear
 Beef.Replicate.adopt(id)  .claim(id)  .disown(id)
 
 Beef.Replicate.released   -- Events: "id:u32", "age:f32"
 Beef.Replicate.adopted    -- "id:u32", "server:string", "age:f32"
-Beef.Replicate.claimed    -- "id:u32", "server:string", "age:f32"
-Beef.Replicate.stats()
+Beef.Replicate.claimed    -- "id:u32", "server:string", "age:f32"   server is "" when the claim lost
+Beef.Replicate.stats()    -- ends with .fleet
 ```
+
+Every entry is the thing, then its options. A fleet event needs an `entity` column; `subject`
+names the kind those handles belong to and defaults to the one kind in `kinds`. `age` names the
+column filled on arrival, in seconds, never sent. Message ids run in declaration order, so both
+sides run the same boot table. Spawn mints an id and despawn releases it by wrapping the kind. A
+mirror is a kind outside `kinds`, bound by the game writing `Replicate.fleet` itself. An event
+for an id nobody carries is dropped and counted; a publish for one is held until it arrives.
+`window` defaults to 0, so nothing collapses unless asked.
 
 ### Cue
 
@@ -328,7 +360,10 @@ Beef.Replicate.stats()
 local cue = Beef.Cue.new():defaults()
 Beef.Cue.Attached                          -- the Component any Kind with content includes
 
--- vocabulary, as today
+-- an entity is one number: the kind's slot and the handle packed together
+Beef.Cue.entity(kind, handle)  Beef.Cue.kind(e)  Beef.Cue.handle(e)  Beef.Cue.alive(e)
+
+-- vocabulary, as before
 cue:operator(name, { stage, commutes, means })
 cue:type(name, { is, zero, words, constructors, operators, entity, means })
 cue:key(name, { type, means })
@@ -349,18 +384,18 @@ cue:primitive("take", {
 --          Take.done    (seq, result)               the answer, result typed by `returns`
 --          Take.refused (seq, because)              the other answer
 
--- content, as today
+-- content, as before
 local sting = cue:define(table, "sting")      -- checked and folded here; errors name the file
 cue:attach(handle, sting)                     -- writes Cue.Attached
 cue:detach(handle, sting)
-cue:fire(handle, "Begin", ctx, scope)         -- a direct firing; scope carries bindings to Release
+cue:fire(handle, "Begin", ctx, scope)         -- a direct firing; dispatches where it stands
 
 -- running
-Beef.Cue.Runner                               -- { Cue.Runner, cue } in a Phase
-                                              --   reads every bound anchor and every .done/.refused
-                                              --   pushes a step, reads its answer, pushes the next
+cue:entry()                                   -- the Phase entry: Cue.Runner, the cue, every bound
+                                              --   anchor and every .done/.refused, so the Phase
+                                              --   freezes them; asks go in writes
 
--- looking in, as today
+-- looking in, as before
 cue:stats()  cue:reference()  cue:primitives()  cue:keysOf(prim)  cue:typeOf(key)
 cue:wordsOf(type)  cue:constructorsOf(type)
 ```
@@ -375,7 +410,7 @@ local function Taking(take, player, quiver)
 		loop = function()
 			local q = quiver.of(player).value
 			for i = take.from, take.last do
-				local arrow = q[player.slot(take.to[i])]:pop(take.ammo[i])
+				local arrow = q[Beef.Cue.handle(take.to[i])]:pop(take.ammo[i])
 				if arrow then take.done.push(take.seq[i], arrow)
 				else take.refused.push(take.seq[i], "ammo") end
 			end
@@ -384,25 +419,42 @@ local function Taking(take, player, quiver)
 end
 ```
 
-Gone from Cue as it is now: the four adapter functions, `apply`, `observe`, `start`, `step`,
-`tick`.
+A step costs two passes, the ask and the answer, since the Phase freezes cursors at the top of
+a pass. A chain longer than the pass budget carries on next frame. Gone from Cue: the four
+adapter functions, `apply`, `observe`, `start`, `step`, `tick`; `perform` stays for cue's own
+verbs, and `sequence` is `chains = true`.
 
 ### Stock
 
 ```luau
-Beef.Stock.Action           -- Event: "name:string", "phase:u8", "value:f32", "device:u8"
+Beef.Stock.Action     -- Event: "action:string", "phase:u8", "value:f32", "x:f32", "y:f32", "device:u8"
+Beef.Stock.Phases     -- Began, Changed, Ended, Held, Buffered, Fired
+Beef.Stock.Devices    -- Unknown, KeyboardAndMouse, Gamepad, Touch
+Beef.Stock.Duck       -- Event: "amount:f32", "lasts:f32"    the one seam between Sound and Music
 
-Beef.Stock.Input(Action, bindings)
-Beef.Stock.Movement(Action, Body, Velocity, moves)
-Beef.Stock.Camera(Transform, Effect)
-Beef.Stock.Sound(map)
-Beef.Stock.Screens(Action, Focus, screens)
-Beef.Stock.Music(State, tracks)
+Beef.Stock.Input(Action, bindings, driver?)              -- keys, axis, move, chord, sequence; buffer, hold, within
+Beef.Stock.Movement(Action, Body, Velocity, moves)       -- walk, sprint, crouch, jump, dash
+Beef.Stock.Camera(Transform, Effect, View, modes, driver?)  -- follow, orbit, first, fixed
+Beef.Stock.Sound(map, driver?)                           -- { { Fired, asset, group, carries, duck }, groups, transform, voices }
+Beef.Stock.Screens(Action, Focus, screens, driver?)      -- opens, closes, suppresses, stacks, layout
+Beef.Stock.Music(State, tracks, Duck?, driver?)          -- asset, volume, loop, crossfade
+
+Beef.Stock.feed()     -- Input's headless driver: a clock a test moves and keys it presses
+Beef.Stock.film()     -- Camera's: records every write
+Beef.Stock.speaker()  -- Sound's: records every play, stop, position and volume
+Beef.Stock.shown()    -- Screens': records show, hide, order and layout
+Beef.Stock.tape()     -- Music's: records every volume, so a fade is a list of numbers
 ```
 
-Each is a factory taking the Events and Components the game names, returning a controller
-`{ name, reads, writes, boot, pre, loop, post }` that goes in a Phase like anything the game
-wrote.
+Each is a factory returning a controller `{ name, reads, writes, boot, pre, loop, post }` that
+goes in a Phase like anything the game wrote, and each has a page in `docs/stock/`. The column
+is `action` and not `name` because every Event answers to `name` already; `x` and `y` are there
+because Movement needs a direction. `Body` holds `granted` and `facing` and the game owns them;
+`View` holds `mode`, `yaw`, `pitch` from the game and `at`, the aim with no effects in it, from
+the camera; `Focus` holds which screen has input and what it suppresses. Movement and Screens
+read `Action`; Camera does not, because turning a camera is input and Input owns input, so the
+game's own controller adds a look action to `View`. Sound's map entries place a sound by an `at`
+column or a `kind, handle` pair; Music ducks by the largest pending amount.
 
 ## Tests
 
@@ -430,10 +482,19 @@ rig. A test that needs Studio for something Lune could have covered is a driver 
 6. **Stock.** Input first, then Movement, since it reads Actions; Camera, Sound, Screens and
    Music in parallel after those two show the shape.
 
-Each is one ticket, one worktree, one branch into `master`, built by an agent that reads this
-file and the code and decides the rest.
+Each was one ticket, one worktree, one branch into `spec/core`, built by an agent that read this
+file and the code and decided the rest. All six landed; the API section above is what shipped.
 
 ## Still open
+
+- **The engine drivers have not run in Studio.** Everything Lune can reach is covered. The
+  InputContext, the camera, the Sound instances, the ScreenGui, a real DataStore and a real
+  remote are the Studio suite's, and it has not been run.
+- **Records and Shared count quota apart.** Each talks to MemoryStore through its own driver, so
+  neither counts the other's units. The two drivers are also different shapes.
+- **Action carries no entity.** Movement's pushes go to every body carrying `Body` and
+  `Velocity`, which on a client is the one body. A server driving many bodies from one Action
+  Event writes its own controller.
 
 - **A place key across a fleet.** One server holds `"harbour"`. Whether another server runs its
   own copy, reads without writing, or waits is answered per game, and the first game that has
