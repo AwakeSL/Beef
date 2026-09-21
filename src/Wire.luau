@@ -10,6 +10,7 @@ local size: { [string]: number } = {
 	u8 = 1,
 	u16 = 2,
 	u32 = 4,
+	u64 = 8,
 	i32 = 4,
 	f32 = 4,
 	f64 = 8,
@@ -42,6 +43,15 @@ write.u32 = function(b, at, v)
 end
 read.u32 = function(b, at)
 	return buffer.readu32(b, at), at + 4
+end
+-- a user id is past what u32 holds, and Luau's buffer has no 64-bit integer; a double is exact to
+-- 2^53, which is far above anything Roblox hands out
+write.u64 = function(b, at, v)
+	buffer.writef64(b, at, v)
+	return at + 8
+end
+read.u64 = function(b, at)
+	return buffer.readf64(b, at), at + 8
 end
 write.i32 = function(b, at, v)
 	buffer.writei32(b, at, v)
