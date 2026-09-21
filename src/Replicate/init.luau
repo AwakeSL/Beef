@@ -10,6 +10,9 @@
 -- publish entry takes `every`, `channel`, `keyframe`, `chunk`, and `origin`, the Component the receiving side
 -- keeps the sender's handle in, since only the game knows which entity here is which entity there.
 --
+-- `fleet` is the same idea pointed at another server rather than at a client: the same Events and the same
+-- columns, over a relay instead of a remote. It is a table rather than a list, and `Fleet` reads it.
+--
 -- Nothing runs in a Phase. The packing is a frame edge, not a pass: what arrived is delivered before every
 -- phase on the signal and what the phases pushed is packed after them, both through `Drivers`, the way the
 -- parallel driver collects and sends around the same phases.
@@ -21,17 +24,19 @@ local Send = require(script.Send)
 local Receive = require(script.Receive)
 local Publish = require(script.Publish)
 local Apply = require(script.Apply)
+local Fleet = require(script.Fleet)
 
 export type Link = Remotes.Link
 export type Driver = Remotes.Driver
 export type Options = Publish.Options
+export type Fleet = Fleet.Config
 
 export type Map = {
 	signal: string?,             -- the RunService signal the phases run on, Heartbeat by default
 	toClients: { any }?,         -- event types the server packs and the clients read
 	toServer: { any }?,          -- event types a client packs and the server reads
 	publish: { any }?,           -- a kind's columns, packed on change and applied on the other side
-	fleet: any?,                 -- the next ticket; see `parts`
+	fleet: Fleet.Config?,        -- the relay: this server's Events and columns out to the rest of the fleet
 }
 
 export type Stats = {
@@ -48,6 +53,7 @@ export type Stats = {
 	dropped: number,
 	oversize: number,
 	links: { [string]: { [string]: any } },
+	fleet: { [string]: any }?,   -- nil when the boot table declared no fleet
 }
 
 export type Wiring = {
@@ -210,13 +216,26 @@ local function published(entries: { any })
 	end
 end
 
--- every key of the boot table is one part, built in the order below. `fleet` is the next one (SPEC: Order, 4:
--- Tether's client under Replicate): it lands here as a fourth entry with its own builder in its own file, and
--- nothing above it or below it changes shape to let it in.
-local parts: { { key: string, build: (value: { any }) -> () } } = {
+-- every key of the boot table is one part, built in the order below. `fleet` is the last of them and the only
+-- one that does not cross a link the engine owns: it is handed the same seams the others use, so it registers
+-- its two ends in `incoming` and `outgoing` and its Events in `windows` like everything else here.
+local parts: { { key: string, build: (value: any) -> () } } = {
 	{ key = "toClients", build = function(value) stream("toClients", value, true) end },
 	{ key = "toServer", build = function(value) stream("toServer", value, false) end },
 	{ key = "publish", build = published },
+	{
+		key = "fleet",
+		build = function(value)
+			Fleet.build({
+				driver = driver,
+				split = split,
+				incoming = incoming,
+				outgoing = outgoing,
+				windows = windows,
+				cursors = cursors,
+			}, value)
+		end,
+	},
 }
 
 local function deliver()
@@ -281,6 +300,7 @@ local function stats(): Stats
 		out.dropped += controller.dropped or 0
 		out.links[controller.link] = report(controller)
 	end
+	out.fleet = Fleet.stats()
 	return out
 end
 
@@ -295,7 +315,6 @@ local function boot(map: Map): Wiring
 	end
 	for key in map :: any do
 		if not known[key] then
-			assert(key ~= "fleet", "Replicate: fleet is not built yet; it is the next ticket (SPEC: Order, 4)")
 			error(("Replicate: %s is not a key of the boot table"):format(tostring(key)), 2)
 		end
 	end
@@ -303,7 +322,7 @@ local function boot(map: Map): Wiring
 	for _, part in parts do
 		local value = (map :: any)[part.key]
 		if value ~= nil then
-			assert(type(value) == "table", ("Replicate: %s is a list of entries"):format(part.key))
+			assert(type(value) == "table", ("Replicate: %s is a table"):format(part.key))
 			part.build(value)
 		end
 	end
@@ -324,12 +343,25 @@ local function boot(map: Map): Wiring
 end
 
 local Replicate = {
-	-- the engine edge, swapped before the boot call: live it is RemoteEvents, under Lune a pair of tables
+	-- the engine edge, swapped before the boot call: live it is RemoteEvents, under Lune a pair of tables.
+	-- The fleet side reads `http`, `spawn` and `clock` off the same table when they are there, and falls back
+	-- to HttpService when they are not.
 	driver = function(chosen: Remotes.Driver)
 		assert(not booted, "Replicate: the driver is chosen before the boot call")
 		driver = chosen
 	end,
 	stats = stats,
+
+	-- the fleet: where an entity lives, what this server wants to hear, and the three ways ownership moves
+	fleet = Fleet.id,
+	place = Fleet.place,
+	want = Fleet.want,
+	adopt = Fleet.adopt,
+	claim = Fleet.claim,
+	disown = Fleet.disown,
+	released = Fleet.released,
+	adopted = Fleet.adopted,
+	claimed = Fleet.claimed,
 }
 
 return setmetatable(Replicate, {
