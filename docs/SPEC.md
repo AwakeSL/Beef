@@ -67,18 +67,13 @@ A key is a string and is not tied to players. Three shapes of key:
 
 ### Reading and writing
 
-`Profile.of(key)` is the record, a plain table. Reads are table reads. Writes are table writes
-and save, the way every library in use does it. Two calls exist for writes that want to be
-announced:
-
-```luau
-Profile.set(key, "coins", 5)
-Profile.change(key, function(r) r.coins += 5; r.unlocked[id] = true end)
-```
-
-Both check the write against `shape`, pack Roblox types (CFrame, Vector3, Color3, and the rest
-`Wire` knows) into numbers, and push `Profile.changed` with the key and the path. A silent
-direct write still saves; it just tells nobody.
+`Profile.of(key)` is the record, a plain table. Reads are table reads, writes are table
+writes, the way every library in use does it, and a position that changes every frame is
+written every frame; the timer picks up what is there. A game that wants to announce a change
+pushes its own typed Event about it, `Coins`, `Unlocked`, from the controller that made the
+change, since that controller already knows. Records has no change event of its own. The
+record is checked against `shape` once at save, and Roblox types (CFrame, Vector3, Color3, and
+the rest `Wire` knows) are packed to numbers there and rebuilt at load.
 
 ### Loading, the lock, saving
 
@@ -94,7 +89,7 @@ A held record is saved whole through `UpdateAsync`: on a timer (thirty seconds),
 and in `BindToClose`. The save checks the lock is still this server's before writing. A lock
 that was lost makes the record read-only, fires `lost` once, and logs once.
 
-Events a record has: `loaded(key)`, `changed(key, path)`, `saved(key)`, `lost(key)`,
+Events a record has, its own lifecycle only: `loaded(key)`, `saved(key)`, `lost(key)`,
 `failed(key, why)`. All ordinary Beef Events; a controller reads them like any other.
 
 ### The driver
