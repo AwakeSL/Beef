@@ -1,8 +1,12 @@
 --!strict
 --!optimize 2
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- the unpacking end of a published kind: what Publish packed lands in the same columns here, found through the
+-- entity that carries the sender's handle. A value stamped before one already seen for that entity is refused,
+-- so an unreliable payload arriving late does not walk a value backwards. A value for an entity this side has
+-- not spawned yet is held, not dropped, and goes in the frame that entity appears.
 
 local Wire = require(script.Parent.Parent.Wire)
+local Remotes = require(script.Parent.Remotes)
 
 type Kind = { name: string, at: (number) -> number? }
 type Bucket = { value: { any }, slot: buffer?, cap: number? }
@@ -11,19 +15,17 @@ type Origin = { find: (number) -> (Kind?, number?) }
 
 local HEADER = 8 + 1 + 4
 
-return function(remoteName: string, kind: Kind, origin: Origin, ...: Component)
-	local components = { ... }
+return function(linkName: string, link: Remotes.Link, kind: Kind, origin: Origin, components: { Component })
 	local width = #components
 	local readers = {}
 	for i, component in components do
-		assert(component.wire, ("Apply: component %s has no wire type"):format(component.name))
+		assert(component.wire, ("Apply %s: component %s has no wire type"):format(linkName, component.name))
 		readers[i] = Wire.read[component.wire :: string]
 	end
 
 	local pending: { buffer } = {}
-	local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild(remoteName)
-	;(remote :: any).OnClientEvent:Connect(function(message: buffer)
-		table.insert(pending, message)
+	link.receive(function(payload: buffer)
+		table.insert(pending, payload)
 	end)
 
 	local waiting: { [number]: { any } } = {}
@@ -35,43 +37,46 @@ return function(remoteName: string, kind: Kind, origin: Origin, ...: Component)
 	local self: { [string]: any }
 	self = {
 		name = "Apply",
+		link = linkName,
 		time = 0,
+		received = 0,
 		applied = 0,
 		refused = 0,
 		waiting = 0,
 		bytes = 0,
 		pre = function()
-			for serverHandle, values in waiting do
-				local _, handle = origin.find(serverHandle)
+			for senderHandle, values in waiting do
+				local _, handle = origin.find(senderHandle)
 				local n = handle and kind.at(handle)
 				if n then
 					for c = 1, width do
 						components[c].add(kind, n, values[c])
 						self.applied += 1
 					end
-					waiting[serverHandle] = nil
+					waiting[senderHandle] = nil
 					self.waiting -= 1
 				end
 			end
 			for _, b in pending do
+				self.received += 1
 				self.bytes += buffer.len(b)
 				local time = buffer.readf64(b, 0)
 				self.time = time
 				local count = buffer.readu32(b, 9)
 				local at = HEADER
 				for i = 1, count do
-					local serverHandle = buffer.readu32(b, at)
+					local senderHandle = buffer.readu32(b, at)
 					at += 4
-					handles[i] = serverHandle
-					local last = seen[serverHandle]
+					handles[i] = senderHandle
+					local last = seen[senderHandle]
 					if last and time < last then
 						stale[i] = true
 						self.refused += 1
 					else
 						stale[i] = false
-						seen[serverHandle] = time
+						seen[senderHandle] = time
 					end
-					local _, handle = origin.find(serverHandle)
+					local _, handle = origin.find(senderHandle)
 					positions[i] = handle and kind.at(handle) or nil
 				end
 				for c = 1, width do

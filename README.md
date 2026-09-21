@@ -85,8 +85,20 @@ Stages: `boot` once, `pre` once a frame, `loop` every pass while something it re
 `post` once a frame after the passes. `heartbeat.describe()` prints what runs and what it
 reads and writes.
 
-`Beef.Stock` has `Send`/`Receive` for events and `Publish`/`Apply` for columns over the
-network, and `Drivers.parallel` runs a phase across Actors. See the demo for all of them.
+One call at boot is the whole map of a game's traffic:
+
+```luau
+Beef.Replicate({
+    toClients = { Damage, Spawned, { Landing, channel = "unreliable" } },
+    toServer = { Input },
+    publish = { { Drop, Position, every = 2, channel = "unreliable", origin = Origin } },
+})
+```
+
+Events and Components say nothing about the network; this table says it, once, and the same
+table runs on both sides. Beef makes the remotes, packs what the phases pushed after they have
+run, and unpacks into the same event types and columns on the other side. `Replicate.stats()`
+says what crossed. `Drivers.parallel` runs a phase across Actors. See the demo for both.
 
 ## Demo
 
@@ -101,5 +113,6 @@ A thousand drops a second, cast in four Actors on the server, drawn on the clien
 
 ```
 rojo serve rain.project.json
-selene src demo
+lune run scripts/test
+selene src test demo
 ```
