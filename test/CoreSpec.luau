@@ -71,6 +71,87 @@ return function(T)
 		T.eq(Drop.count, 1, "and was despawned")
 	end)
 
+	T.case("a controller reads an event only declared, not handed, and still sees its pushes", function()
+		local Beef = T.load()
+		local Ping = Beef.Events.new("ping", "n:u32")
+
+		local function Pinger(ping)
+			return {
+				name = "Pinger",
+				writes = { ping },
+				loop = function()
+					if ping.count == 0 then
+						ping.push(1)
+					end
+				end,
+			}
+		end
+
+		-- Listener never receives Ping as an argument, the way Sound's mapped Events never do; it
+		-- only names Ping in reads and closes over it
+		local seen: { number } = {}
+		local function Listener()
+			return {
+				name = "Listener",
+				reads = { Ping },
+				loop = function()
+					for i = Ping.from, Ping.last do
+						table.insert(seen, Ping.n[i])
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", {
+			{ Pinger, Ping },
+			{ Listener },
+		})
+
+		phase.run()
+		T.eq(#seen, 1, "a declared read with no handed buffer still gets a window")
+		T.eq(seen[1], 1)
+		T.ok(phase.describe():find("Listener"), "and it is listed by describe")
+	end)
+
+	T.case("a chain that hits the pass cap continues on the next frame, nothing seen twice or dropped", function()
+		local Beef = T.load()
+		local Chain = Beef.Events.new("chain", "n:u32")
+		local LIMIT = 50
+		local seen: { number } = {}
+
+		local function Chaser(chain)
+			return {
+				name = "Chaser",
+				reads = { chain },
+				writes = { chain },
+				loop = function()
+					for i = chain.from, chain.last do
+						local n = chain.n[i]
+						table.insert(seen, n)
+						if n < LIMIT then
+							chain.push(n + 1)
+						end
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", { { Chaser, Chain } })
+		Chain.push(1)
+
+		phase.run()
+		T.eq(phase.passes, 32, "the frame hit the pass cap")
+		T.eq(#seen, 32, "only what the capped passes delivered showed up this frame")
+
+		Beef.Events.lap()
+		phase.run()
+		T.ok(phase.passes < 32, "the rest did not need the cap again to finish")
+		T.eq(#seen, LIMIT, "the whole chain finished, nothing left stuck in the buffer")
+		for i = 1, LIMIT do
+			T.eq(seen[i], i, ("value %d arrived exactly once, in order"):format(i))
+		end
+	end)
+
 	T.case("Wire packs a vector3 round trip", function()
 		local Wire = T.module("Wire")
 		local b = buffer.create(12)

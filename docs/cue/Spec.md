@@ -511,10 +511,10 @@ has to be visible rather than silently truncated.
 
 A third shape is now bounded by the loop rather than by cue: content that asks and answers
 forever within one frame runs the Phase out of passes, which warns and stops. **Work that a frame
-cannot finish is work the frame does not deliver**: what a capped pass pushed is not read by the
-next frame, so a chain long enough to outrun the pass budget stalls rather than continuing. The
-budget is 32 passes, so about fifteen immediate steps a frame, and anything near that is content
-to look at, not a limit to raise.
+cannot finish inside it is carried, not lost**: what a capped pass pushed reaches loop readers on
+the next frame's first pass, so a chain long enough to outrun the pass budget carries on next
+frame rather than stalling. The budget is 32 passes, so about fifteen immediate steps a frame, and
+anything near that is content to look at, not a limit to raise.
 
 ---
 
@@ -684,7 +684,7 @@ Nothing structural. What is left are consequences to watch rather than choices t
   console command rather than a bound argued on paper
 - **`over` on a primitive that cannot be spread** is a load error only if that primitive declares
   whether it takes `over`, which is the design, and is the kind of declaration that gets skipped
-- **a chain longer than the pass budget stalls** rather than continuing next frame (§7). Fifteen
+- **a chain longer than the pass budget carries on next frame** rather than stalling (§7). Fifteen
   immediate steps is far past anything content should be doing, so this is an instrument to add
   before it is a mechanism to build
 
