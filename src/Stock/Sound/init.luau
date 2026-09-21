@@ -22,10 +22,12 @@
 -- the budget runs headless: `Beef.Stock.speaker()` records every play, stop, position and volume and a spec
 -- asserts on what it recorded.
 --
--- What it keeps between frames is the voices it has running and how far it has read each Event, and
--- nothing else. The group volumes are the game's own table, read every frame, so a settings slider writes
--- a number into it and the next frame is quieter. Time comes from `phase.dt`, the way Movement's does,
--- because nothing here asks the engine what the hour is.
+-- What it keeps between frames is the voices it has running, and nothing else: it declares every mapped
+-- Event in `reads`, so the phase freezes a window over each one the same way it would for a handed Event,
+-- and this reads `from`/`last` off them at post like any other controller. The group volumes are the
+-- game's own table, read every frame, so a settings slider writes a number into it and the next frame is
+-- quieter. Time comes from `phase.dt`, the way Movement's does, because nothing here asks the engine what
+-- the hour is.
 
 local Duck = require(script.Parent.Duck)
 local Engine = require(script.Engine)
@@ -269,17 +271,6 @@ return function(map: { any }, chosen: Driver?): any
 	local live: { Voice } = {}
 	local next_ = 0
 
-	-- where this controller has read each mapped Event up to. The Events arrive in a table rather than as
-	-- arguments to the phase entry, so the phase does not know them and does not move a window over them
-	-- the way it does for a controller handed its Event. This reads every push since its own last frame and
-	-- leaves the Event's own window exactly where it found it, so a controller that was handed the same
-	-- Event reads what the phase gave it.
-	local cursors: { number } = {}
-	for e, entry in entries do
-		local event = entry.event
-		cursors[e] = event.base + event.count + 1
-	end
-
 	-- how loud a group is right now. The table is the game's own, so a settings slider writes into it and
 	-- this reads what is there; a group nobody declared is full volume.
 	local function mix(name: string?): number
@@ -420,16 +411,9 @@ return function(map: { any }, chosen: Driver?): any
 				free(done[i])
 			end
 
-			for e, entry in entries do
+			for _, entry in entries do
 				local event = entry.event
-				local base = event.base
-				local last = event.count
-				local first = cursors[e] - base
-				if first < 1 then
-					first = 1
-				end
-				cursors[e] = base + last + 1
-				for i = first, last do
+				for i = event.from, event.last do
 					local at, heard = whereabouts(entry, i, listener)
 					if heard then
 						start(entry, at, listener)

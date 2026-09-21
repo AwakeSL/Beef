@@ -71,6 +71,48 @@ return function(T)
 		T.eq(Drop.count, 1, "and was despawned")
 	end)
 
+	T.case("a controller reads an event only declared, not handed, and still sees its pushes", function()
+		local Beef = T.load()
+		local Ping = Beef.Events.new("ping", "n:u32")
+
+		local function Pinger(ping)
+			return {
+				name = "Pinger",
+				writes = { ping },
+				loop = function()
+					if ping.count == 0 then
+						ping.push(1)
+					end
+				end,
+			}
+		end
+
+		-- Listener never receives Ping as an argument, the way Sound's mapped Events never do; it
+		-- only names Ping in reads and closes over it
+		local seen: { number } = {}
+		local function Listener()
+			return {
+				name = "Listener",
+				reads = { Ping },
+				loop = function()
+					for i = Ping.from, Ping.last do
+						table.insert(seen, Ping.n[i])
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", {
+			{ Pinger, Ping },
+			{ Listener },
+		})
+
+		phase.run()
+		T.eq(#seen, 1, "a declared read with no handed buffer still gets a window")
+		T.eq(seen[1], 1)
+		T.ok(phase.describe():find("Listener"), "and it is listed by describe")
+	end)
+
 	T.case("Wire packs a vector3 round trip", function()
 		local Wire = T.module("Wire")
 		local b = buffer.create(12)
