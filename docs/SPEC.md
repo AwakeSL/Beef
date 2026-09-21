@@ -41,22 +41,23 @@ local Profile = Beef.Records.new("profile", {
 		[2] = function(r) r.settings = { music = 0.8 } end,
 		[3] = function(r) r.unlocked = {} end,
 	},
-	player = true,
 })
 ```
 
 `shape` is the record a new key starts with and what a write is checked against. `version` is
 what stored data claims to be; `migrate[n]` takes a record at version `n - 1` to `n`, and a load
 runs them in order from the stored version to the declared one. Stored data newer than the code
-refuses to load, since the code cannot know what it would be overwriting. `player = true` ties
-the record to players: loaded on join, released on leave, keyed by user id, and a player is not
-in the game for any controller until `loaded` has fired for them.
+refuses to load, since the code cannot know what it would be overwriting.
+
+`Profile.load(key)` takes the lock and loads; `Profile.release(key)` saves and lets go. That is
+the whole lifecycle, the same for every key. A game loads a player's record from its own join
+code and releases it on leave, and decides for itself whether a player whose load failed stays.
 
 ### Keys
 
 A key is a string and is not tied to players. Three shapes of key:
 
-- **A player**: the user id. Loaded at join, released at leave.
+- **A player**: the user id.
 - **A thing**: a GUID the game gives it when it is born, kept on the entity as a Component so the
   entity can find its record. Entity handles are session numbers and die with the server; the
   Component value is what outlives them.
@@ -84,8 +85,8 @@ key to `{ server, at }`, with a TTL of the refresh interval plus thirty seconds,
 held. A server that dies stops refreshing and its locks vanish for every other server at the
 same moment, so nothing waits on a wall clock and no DataStore request is spent on locking. A
 key another live server holds is waited for; a load that fails outright fires `failed` with the
-reason, and for a player record the player is removed with that reason, because playing
-without a record and then saving over it is how data is lost.
+reason and loads nothing, because playing without a record and then saving over it is how
+data is lost.
 
 A held record is saved whole through `UpdateAsync`: on a timer (thirty seconds), on release,
 and in `BindToClose`. The save checks the lock is still this server's before writing. A lock
