@@ -326,6 +326,20 @@ function Fixture.game(Beef: any, extend: ((any, any) -> ())?): any
 		table.insert(extra, { answering(name, handle), event })
 	end
 
+	-- a controller that only looks: it reads the asks it is handed and writes nothing, which is
+	-- how a game watches what cue asked for without being the one that answers
+	function fx.watch(name: string, reads: { any }, loop: () -> ())
+		local entry: { any } = {
+			function(): any
+				return { name = name, reads = reads, loop = loop }
+			end,
+		}
+		for _, buffer in reads do
+			table.insert(entry, buffer)
+		end
+		table.insert(extra, entry)
+	end
+
 	if extend ~= nil then
 		extend(cue, fx)
 	end
