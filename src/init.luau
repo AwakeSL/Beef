@@ -10,6 +10,7 @@ local Wire = require(script.Wire)
 local Records = require(script.Records)
 local Replicate = require(script.Replicate)
 local Shared = require(script.Shared)
+local Stock = require(script.Stock)
 
 export type Kind = Kinds.Kind
 export type KindOptions = Kinds.Options
@@ -37,6 +38,9 @@ export type SharedSorted = Shared.Sorted
 export type SharedQueue = Shared.Queue
 export type SharedMap = Shared.Map
 export type SharedStats = Shared.Stats
+export type Declared = Stock.Declared
+export type Edge = Stock.Edge
+export type InputDriver = Stock.InputDriver
 
 return {
 	Kinds = Kinds,
@@ -48,4 +52,5 @@ return {
 	Records = Records,
 	Replicate = Replicate,
 	Shared = Shared,
+	Stock = Stock,
 }

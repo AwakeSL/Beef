@@ -269,8 +269,10 @@ for _, name in names do
 				error("[test] a spec requires by path string only", 2)
 			end,
 			Vector3 = roblox.Vector3,
+			Vector2 = roblox.Vector2,
 			CFrame = roblox.CFrame,
 			Color3 = roblox.Color3,
+			Enum = roblox.Enum,
 		},
 		injectGlobals = true,
 			codegenEnabled = false,
