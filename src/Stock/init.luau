@@ -10,7 +10,9 @@
 local Action = require(script.Action)
 local Input = require(script.Input)
 local Movement = require(script.Movement)
+local Screens = require(script.Screens)
 local Feed = require(script.Input.Feed)
+local Shown = require(script.Screens.Shown)
 
 export type Declared = Input.Declared
 export type Edge = Input.Edge
@@ -24,8 +26,13 @@ return {
 
 	Input = Input,
 	Movement = Movement,
+	Screens = Screens,
 
 	-- an input driver with a clock a test moves and keys it presses, handed to `Input` in place of the
 	-- engine. A spec of Beef's own uses it, and so does a game testing its own controllers headless.
 	feed = Feed.new,
+
+	-- a screens driver that writes down what it was shown, handed to `Screens` in place of the engine,
+	-- so a spec reads back which screen is up and where it landed.
+	shown = Shown.new,
 }
