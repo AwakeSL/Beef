@@ -406,9 +406,12 @@ wrote.
 
 ## Tests
 
-Beef has no headless suite today, only the Lune inline script. The Records ticket sets the rig
-up: a `lune run test` that loads `src/` with `Vector3` and the other datatypes from
-`@lune/roblox`, and every ticket after it adds to that suite.
+The headless suite is `lune run scripts/test [Name ...]`. A spec is `test/<Name>Spec.luau`
+returning `function(T)`; `T.load()` is a fresh Beef, `T.module("Stock/Send")` one file, and
+`T.case`, `T.eq`, `T.ok`, `T.throws` are the assertions. The loader stands in for `script` and
+`game`, and Roblox datatypes come from `@lune/roblox`, so a module loads even where it touches
+the engine at the top; what a test needs real, it makes real through the driver. Every ticket
+adds its spec there.
 
 Every core piece runs headless under Lune through its driver, and the Studio suite covers the
 engine edge only: a real DataStore round trip, a real remote, a real relay through the live
