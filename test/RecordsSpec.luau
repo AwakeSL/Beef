@@ -171,6 +171,25 @@ return function(T)
 		T.eq(world.locks.profile["42"].server, "B", "and B keeps the lock")
 	end)
 
+	T.case("a copy that lost its lock is loaded again from the store", function()
+		local world, keeper, A = join(nil, "A")
+		A.load("42").coins = 7
+		world.advance(1.5)
+		keeper.Records.step()
+		world.advance(40)
+		local _, _, B = join(world, "B")
+		B.load("42").coins = 11
+		keeper.Records.step()
+		T.eq(A.lost.count, 1, "A lost it")
+		B.release("42")
+
+		local again = A.load("42")
+		T.ok(again ~= nil, "A loaded it again: " .. tostring(A.failed.why[1]))
+		T.eq(again.coins, 11, "with what B left, not the copy A was holding")
+		T.eq(A.held("42"), true, "and holds it properly")
+		T.eq(A.lost.count, 1, "the old loss is not fired again")
+	end)
+
 	T.case("migrations run in order from the stored version", function()
 		local world = T.load().Records.world()
 		world.data.profile = { ["1"] = { version = 1, at = 0, data = { coins = 4 } } }

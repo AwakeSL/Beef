@@ -389,7 +389,11 @@ function Records.new(name: string, options: Options): Record
 		assert(type(key) == "string", ("%s: a key is a string"):format(name))
 		local holding = holdings[key]
 		if holding then
-			return holding.value
+			if not holding.lost then
+				return holding.value
+			end
+			-- the copy that lost its lock is done with: loading again starts from the store
+			holdings[key] = nil
 		end
 		local d = current()
 		local took, why = take(key, d)
