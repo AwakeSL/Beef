@@ -250,12 +250,27 @@ function Events.new(name: string, ...: any): Buffer
 		end
 	end
 	local buffer = bookkeeping(name, names, wire, columns, keep)
+	-- push and entity are always fields of a Buffer even though their real values land further
+	-- down; reserve the keys now so a column cannot claim either of them
+	buffer.push = false
+	buffer.entity = false
+	local seen: { [string]: boolean } = {}
 	for i = 1, width do
-		buffer[names[i]] = columns[i]
+		local column = names[i]
+		if seen[column] then
+			error(("%s: column %s is declared twice"):format(name, column), 0)
+		end
+		seen[column] = true
+		if buffer[column] ~= nil then
+			error(("%s: column %s is one of its own fields; rename the column"):format(name, column), 0)
+		end
+		buffer[column] = columns[i]
 	end
 	if entity then
 		assert(table.find(names, entity), ("%s: entity column %s is not one of its columns"):format(name, entity))
 		buffer.entity = entity
+	else
+		buffer.entity = nil
 	end
 	local maker = makers[width]
 	if maker then
