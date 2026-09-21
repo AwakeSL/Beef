@@ -193,11 +193,14 @@ function Phase.new(name: string, entries: { Entry }): Phase
 				pre[i]()
 			end
 
+			-- passCursors is never reset from cursors here: it already sits where the loop left off
+			-- last frame. Usually that is the same point cursors holds too, since a frame that quiets
+			-- down naturally has nothing left unfrozen. A frame that hits the pass cap below is the
+			-- exception: passCursors stops short of what the capped pass pushed, on purpose, so that
+			-- leftover is exactly what the next frame's first pass (which always runs) freezes and
+			-- delivers, once, before anything else. post keeps reading from `cursors`, unaffected.
 			local passes = 0
 			if nloop > 0 then
-				for i = 1, m do
-					passCursors[i] = cursors[i]
-				end
 				while true do
 					for i = 1, m do
 						passCursors[i] = buffers[i].freeze(passCursors[i])
@@ -231,7 +234,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 						break
 					end
 					if passes >= PASS_CAP then
-						warn(name .. " hit the pass cap")
+						warn(name .. " hit the pass cap; the rest carries to the next frame")
 						break
 					end
 				end

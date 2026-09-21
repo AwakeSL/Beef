@@ -113,6 +113,45 @@ return function(T)
 		T.ok(phase.describe():find("Listener"), "and it is listed by describe")
 	end)
 
+	T.case("a chain that hits the pass cap continues on the next frame, nothing seen twice or dropped", function()
+		local Beef = T.load()
+		local Chain = Beef.Events.new("chain", "n:u32")
+		local LIMIT = 50
+		local seen: { number } = {}
+
+		local function Chaser(chain)
+			return {
+				name = "Chaser",
+				reads = { chain },
+				writes = { chain },
+				loop = function()
+					for i = chain.from, chain.last do
+						local n = chain.n[i]
+						table.insert(seen, n)
+						if n < LIMIT then
+							chain.push(n + 1)
+						end
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", { { Chaser, Chain } })
+		Chain.push(1)
+
+		phase.run()
+		T.eq(phase.passes, 32, "the frame hit the pass cap")
+		T.eq(#seen, 32, "only what the capped passes delivered showed up this frame")
+
+		Beef.Events.lap()
+		phase.run()
+		T.ok(phase.passes < 32, "the rest did not need the cap again to finish")
+		T.eq(#seen, LIMIT, "the whole chain finished, nothing left stuck in the buffer")
+		for i = 1, LIMIT do
+			T.eq(seen[i], i, ("value %d arrived exactly once, in order"):format(i))
+		end
+	end)
+
 	T.case("Wire packs a vector3 round trip", function()
 		local Wire = T.module("Wire")
 		local b = buffer.create(12)

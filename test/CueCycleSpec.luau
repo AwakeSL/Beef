@@ -70,6 +70,28 @@ return function(T: any)
 		T.ok(fx.phase().passes >= 24, "it took two passes a step to get there")
 	end)
 
+	T.case("a chain longer than the pass budget continues on the next frame", function()
+		-- twenty immediate steps is forty passes, past the phase's cap of thirty-two: the cap cuts
+		-- the chain off mid frame, and what it could not deliver carries to the next frame's first
+		-- pass instead of being lost, so the chain finishes there rather than stalling
+		local steps: { any } = {}
+		for i = 1, 20 do
+			table.insert(steps, { primitive = "sound", id = ("step%d"):format(i) })
+		end
+		local marathon = cue:define({ events = {
+			{ anchor = "Begin", { sequence = steps } },
+		} }, "marathon")
+		local walker = fx.entity("walker")
+		cue:attach(walker, marathon)
+		cue:fire(walker, "Begin")
+		fx.frame()
+		T.eq(fx.phase().passes, 32, "the frame hit the pass cap")
+		T.eq(fx.sounds("step20"), 0, "the chain did not finish inside the capped frame")
+		fx.frame()
+		T.eq(fx.sounds("step20"), 1, "and it continues, finishing on the next frame")
+		T.eq(cue.runner.stats.inflight, 0, "nothing is left in flight")
+	end)
+
 	T.case("repeated identical grants intern a handful of sets, not a flood", function()
 		local granter = cue:define({ events = {
 			{ anchor = "Hit",
