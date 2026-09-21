@@ -97,7 +97,7 @@ local function bookkeeping(name: string, names: { string }, wire: { [string]: st
 		buffer.lapStart = buffer.count + 1
 	end
 
-	-- retained closed laps, oldest first: how many, and the k-th one's window (rows from, last) and stamp
+	-- retained closed laps, oldest first: how many, and the k-th one's window (pushes from, last) and stamp
 	buffer.laps = function(): number
 		return closed
 	end
@@ -113,7 +113,7 @@ local function bookkeeping(name: string, names: { string }, wire: { [string]: st
 		return from, last, times[i]
 	end
 
-	-- first row of the oldest retained lap stamped at or after time, and whether every lap since then is still held
+	-- first push of the oldest retained lap stamped at or after time, and whether every lap since then is still held
 	buffer.since = function(time: number): (number, boolean)
 		for k = closed, 1, -1 do
 			local i = (head - k) % keep + 1
@@ -250,12 +250,27 @@ function Events.new(name: string, ...: any): Buffer
 		end
 	end
 	local buffer = bookkeeping(name, names, wire, columns, keep)
+	-- push and entity are always fields of a Buffer even though their real values land further
+	-- down; reserve the keys now so a column cannot claim either of them
+	buffer.push = false
+	buffer.entity = false
+	local seen: { [string]: boolean } = {}
 	for i = 1, width do
-		buffer[names[i]] = columns[i]
+		local column = names[i]
+		if seen[column] then
+			error(("%s: column %s is declared twice"):format(name, column), 0)
+		end
+		seen[column] = true
+		if buffer[column] ~= nil then
+			error(("%s: column %s is one of its own fields; rename the column"):format(name, column), 0)
+		end
+		buffer[column] = columns[i]
 	end
 	if entity then
 		assert(table.find(names, entity), ("%s: entity column %s is not one of its columns"):format(name, entity))
 		buffer.entity = entity
+	else
+		buffer.entity = nil
 	end
 	local maker = makers[width]
 	if maker then

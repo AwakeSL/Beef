@@ -7,6 +7,11 @@ local Events = require(script.Events)
 local Phase = require(script.Phase)
 local Drivers = require(script.Drivers)
 local Wire = require(script.Wire)
+local Records = require(script.Records)
+local Replicate = require(script.Replicate)
+local Shared = require(script.Shared)
+local Stock = require(script.Stock)
+local Cue = require(script.Cue)
 
 export type Kind = Kinds.Kind
 export type KindOptions = Kinds.Options
@@ -21,6 +26,24 @@ export type Phase = Phase.Phase
 export type Step = Drivers.Step
 export type Parallel = Drivers.Parallel
 export type ParallelOptions = Drivers.ParallelOptions
+export type Record = Records.Record
+export type RecordOptions = Records.Options
+export type RecordDriver = Records.Driver
+export type RecordWorld = Records.World
+export type ReplicateMap = Replicate.Map
+export type ReplicateOptions = Replicate.Options
+export type ReplicateStats = Replicate.Stats
+export type ReplicateDriver = Replicate.Driver
+export type Wiring = Replicate.Wiring
+export type SharedSorted = Shared.Sorted
+export type SharedQueue = Shared.Queue
+export type SharedMap = Shared.Map
+export type SharedStats = Shared.Stats
+export type Declared = Stock.Declared
+export type Edge = Stock.Edge
+export type InputDriver = Stock.InputDriver
+export type Cue = Cue.Cue
+export type Ictx = Cue.Ictx
 
 return {
 	Kinds = Kinds,
@@ -29,10 +52,9 @@ return {
 	Phase = Phase,
 	Drivers = Drivers,
 	Wire = Wire,
-	Stock = {
-		Send = require(script.Stock.Send),
-		Receive = require(script.Stock.Receive),
-		Publish = require(script.Stock.Publish),
-		Apply = require(script.Stock.Apply),
-	},
+	Records = Records,
+	Replicate = Replicate,
+	Shared = Shared,
+	Stock = Stock,
+	Cue = Cue,
 }

@@ -76,20 +76,35 @@ function Phase.new(name: string, entries: { Entry }): Phase
 			assert(isBuffer(buffer), ("%s/%s: writes must hold event types"):format(name, who))
 			declared[buffer] = if declared[buffer] then "reads, writes" else "writes"
 		end
+
+		-- a buffer this controller declared gets exactly what a handed one gets: frozen, in readsOf,
+		-- in usage. A controller can be handed the same buffer besides (Gun above), or never handed it
+		-- at all (Sound's Events live inside a map table); either way it is registered once.
+		local registered: { [any]: boolean } = {}
+		local function register(buffer: any, how: string)
+			if registered[buffer] then
+				return
+			end
+			registered[buffer] = true
+			table.insert(usage, { buffer = buffer, controller = who, how = how })
+			if how ~= "writes" then
+				frozen(buffer)
+				local list = readsOf[controller]
+				if not list then
+					list = {}
+					readsOf[controller] = list
+				end
+				table.insert(list, buffer)
+			end
+		end
+		for buffer, how in declared do
+			register(buffer, how)
+		end
+
 		for i = 2, #entry do
 			local handed = entry[i]
 			if isBuffer(handed) then
-				local how = declared[handed] or "uses"
-				table.insert(usage, { buffer = handed, controller = who, how = how })
-				if how ~= "writes" then
-					frozen(handed)
-					local list = readsOf[controller]
-					if not list then
-						list = {}
-						readsOf[controller] = list
-					end
-					table.insert(list, handed)
-				end
+				register(handed, declared[handed] or "uses")
 			elseif type(handed) == "table" and type(handed.spawn) == "function" and not kindSeen[handed] then
 				kindSeen[handed] = true
 				table.insert(kinds, handed)
@@ -170,7 +185,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 		end
 		table.clear(boot)
 		while true do
-			-- pre sees every row pushed since the previous frame's pre; a lap moves the rows, so the window is taken fresh
+			-- pre sees every push since the previous frame's pre; a lap moves the pushes, so the window is taken fresh
 			for i = 1, m do
 				preCursors[i] = buffers[i].freeze(preCursors[i])
 			end
@@ -178,11 +193,14 @@ function Phase.new(name: string, entries: { Entry }): Phase
 				pre[i]()
 			end
 
+			-- passCursors is never reset from cursors here: it already sits where the loop left off
+			-- last frame. Usually that is the same point cursors holds too, since a frame that quiets
+			-- down naturally has nothing left unfrozen. A frame that hits the pass cap below is the
+			-- exception: passCursors stops short of what the capped pass pushed, on purpose, so that
+			-- leftover is exactly what the next frame's first pass (which always runs) freezes and
+			-- delivers, once, before anything else. post keeps reading from `cursors`, unaffected.
 			local passes = 0
 			if nloop > 0 then
-				for i = 1, m do
-					passCursors[i] = cursors[i]
-				end
 				while true do
 					for i = 1, m do
 						passCursors[i] = buffers[i].freeze(passCursors[i])
@@ -216,7 +234,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 						break
 					end
 					if passes >= PASS_CAP then
-						warn(name .. " hit the pass cap")
+						warn(name .. " hit the pass cap; the rest carries to the next frame")
 						break
 					end
 				end
@@ -289,7 +307,7 @@ function Phase.new(name: string, entries: { Entry }): Phase
 	local function silent() end
 
 	-- rewind one entity to `from`, then run the loop stage over each retained lap stamped after it up to `to`
-	-- an event type that names its entity column is stepped one matching row at a time; one without is replayed whole
+	-- an event type that names its entity column is stepped one matching push at a time; one without is replayed whole
 	-- pushes made by this phase's controllers are dropped for the duration
 	local savedFrom: { number } = {}
 	local savedLast: { number } = {}
@@ -348,9 +366,9 @@ function Phase.new(name: string, entries: { Entry }): Phase
 				end
 				local column = buffer.entity and buffer[buffer.entity]
 				if column then
-					for row = f, l do
-						if column[row] == handle then
-							buffer.from, buffer.last = row, row
+					for i = f, l do
+						if column[i] == handle then
+							buffer.from, buffer.last = i, i
 							for j = 1, nloop do
 								loop[j]()
 							end

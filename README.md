@@ -34,7 +34,7 @@ local Position = Components.new("position", { wire = "vector3" })
 local Velocity = Components.new("velocity", { wire = "vector3" })
 local Drop = Kinds.new("drop", Position, Velocity)
 
--- events are rows with typed columns
+-- an event is a name and typed columns; a push is one entry across them
 local Landing = Events.new("landing", "handle:u32", "x:f32", "y:f32", "z:f32")
 
 -- a controller is a function that returns a table with a stage or two
@@ -85,8 +85,95 @@ Stages: `boot` once, `pre` once a frame, `loop` every pass while something it re
 `post` once a frame after the passes. `heartbeat.describe()` prints what runs and what it
 reads and writes.
 
-`Beef.Stock` has `Send`/`Receive` for events and `Publish`/`Apply` for columns over the
-network, and `Drivers.parallel` runs a phase across Actors. See the demo for all of them.
+One call at boot is the whole map of a game's traffic:
+
+```luau
+Beef.Replicate({
+    toClients = { Damage, Spawned, { Landing, channel = "unreliable" } },
+    toServer = { Input },
+    publish = { { Drop, Position, every = 2, channel = "unreliable", origin = Origin } },
+})
+```
+
+Events and Components say nothing about the network; this table says it, once, and the same
+table runs on both sides. Beef makes the remotes, packs what the phases pushed after they have
+run, and unpacks into the same event types and columns on the other side. `Replicate.stats()`
+says what crossed. `Drivers.parallel` runs a phase across Actors. See the demo for both.
+
+## Records
+
+Durable state, per key, a DataStore behind it. A record is declared with a shape, a version and
+its migrations; a key is loaded under a session lock, read and written as a plain table, and
+saved on a timer, on release and at close.
+
+```luau
+local Profile = Beef.Records.new("profile", {
+    version = 2,
+    shape = { coins = 0, settings = { music = 0.8 } },
+    migrate = { [2] = function(record) record.settings = { music = 0.8 } end },
+})
+
+Beef.Records.players(Profile)    -- a player's id is the key, their session is the hold
+
+Profile.of(key).coins += 1       -- a read is a table read, a write is a table write
+```
+
+`Profile.loaded`, `.saved`, `.lost` and `.failed` are ordinary Beef Events, so a controller
+reads them in its loop like anything else. Everything that leaves the process goes through a
+driver: `Beef.Records.memory(world)` is tables in memory with a clock a test moves, which is
+how the headless suite runs the lock, a lapsed lock, and two servers over one key.
+
+## Shared
+
+Live cross-server state over MemoryStore, gone at its TTL: a leaderboard, a matchmaking queue, a
+table every server reads and writes at once. Three declared shapes matching the service, and what
+changes on any of them arrives as an ordinary Event.
+
+```luau
+local Ranks = Beef.Shared.sorted("ranks", { value = "u32", ttl = 3600, poll = 5 })
+local Lobby = Beef.Shared.queue("lobby", { fields = { "userId:u64", "rating:u16" }, ttl = 300, poll = 1 })
+
+Ranks.set(key, score)         -- queued; nothing here yields the caller
+Ranks.get(key)                -- what the last poll saw, no request spent
+Ranks.range(from, to, count)  -- that window, held to a range of values
+
+-- Ranks.changed   "key:string", "value:u32"   a set here or on another server
+-- Ranks.removed   "key:string"                removed, or gone at its TTL
+-- Lobby.received  "id:string", then the declared fields; Lobby.remove(id) accepts the batch
+```
+
+A call made in a controller goes on a queue that a pump drains on its own thread, so a loop never
+waits on the service. Request units are counted against the quota Roblox gives, a thousand plus a
+hundred and twenty a player a minute; a call over budget is held and counted in
+`Beef.Shared.stats()`, never dropped. `Beef.Shared.driver(Beef.Shared.tables())` puts tables and a
+clock the test moves by hand where the service was, so all of it runs headless.
+
+`Beef.Cue` is authored content, compiled and run: a game declares its vocabulary, content is
+plain tables written in it, and every verb asks on an Event that one of your controllers
+answers. `cue:entry()` is its place in a phase. See `docs/cue/Guide.md`.
+
+## Stock
+
+Six controllers most games take and any game replaces, each reading and writing Beef Events and
+Components and nothing else. They share one Event, `Beef.Stock.Action`, which Input writes and
+Movement and Screens read.
+
+```luau
+local Stock = Beef.Stock
+
+local heartbeat = Beef.Phase.new("Heartbeat", {
+	{ Stock.Input, Stock.Action, bindings },
+	{ Stock.Movement, Stock.Action, Body, Velocity, moves },
+	{ Stock.Screens, Stock.Action, Focus, screens },
+	{ Stock.Camera, Transform, Effect, View, modes },
+	{ Stock.Sound, map },
+	{ Stock.Music, State, tracks, Stock.Duck },
+})
+```
+
+Each one that touches the engine does so through a driver, and a headless driver for each is on
+`Beef.Stock` (`feed`, `film`, `speaker`, `shown`, `tape`) so a game tests its own controllers
+against the stock ones with no Roblox in the loop. One page per controller in `docs/stock/`.
 
 ## Demo
 
@@ -101,5 +188,25 @@ A thousand drops a second, cast in four Actors on the server, drawn on the clien
 
 ```
 rojo serve rain.project.json
-selene src demo
+lune run scripts/test
+selene src test demo
 ```
+
+`scripts/test` runs every spec under `test/` headless, Beef loaded out of `src/` by
+`scripts/loader` with a stand-in `script` and inert Roblox globals. The fleet is covered there
+against a relay written in Luau, which is bytes in and bytes out like the real one.
+
+To prove the same edges against the relay a live game talks to, build and start it out of
+Tether's repo and run the live rig:
+
+```
+cargo build --release --manifest-path <tether>/relay/Cargo.toml
+TETHER_PORT=47831 <tether>/relay/target/release/tether-relay
+lune run scripts/live
+```
+
+It stands up two whole Beefs over real HTTP and checks a block of ids granted, a place and a
+want, a moving column crossing and collapsing to one entry a flush, a push landing in the other
+server's Event buffer with its age, a release, an adopt, and two servers claiming the same
+subject with exactly one winner. It exits 1 on any failure and prints the relay's own `/state`
+either way.

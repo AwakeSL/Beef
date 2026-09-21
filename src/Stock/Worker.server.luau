@@ -24,8 +24,8 @@ local seen: { [number]: number } = {}
 local handles: { number } = {}
 setup.slice.handles = handles
 
--- reads the header, resolves the components this phase declared by name, and unpacks only the rows this worker owns
--- (every row when the phase module says `everyone = true`) and only those columns
+-- reads the header, resolves the components this phase declared by name, and unpacks only the pushes this worker owns
+-- (every push when the phase module says `everyone = true`) and only those columns
 local names: { string } = {}
 local sizes: { number } = {}
 local columnAt: { number } = {}

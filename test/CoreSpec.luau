@@ -1,0 +1,163 @@
+--!strict
+-- The rig itself: Beef loads headless, and a kind, a component, an event and a phase do a frame.
+
+return function(T)
+	T.case("Beef loads with every core module", function()
+		local Beef = T.load()
+		for _, name in { "Kinds", "Components", "Events", "Phase", "Drivers", "Wire", "Records" } do
+			T.ok(Beef[name] ~= nil, "Beef." .. name)
+		end
+	end)
+
+	T.case("a phase moves an entity and reads an event", function()
+		local Beef = T.load()
+		local Position = Beef.Components.new("position", { wire = "vector3" })
+		local Velocity = Beef.Components.new("velocity", { wire = "vector3" })
+		local Drop = Beef.Kinds.new("drop", Position, Velocity)
+		local Landing = Beef.Events.new("landing", "handle:u32", "y:f32")
+
+		local function Fall(drop, position, velocity, landing)
+			local self
+			self = {
+				name = "Fall",
+				loop = function()
+					local p, v = position.of(drop).value, velocity.of(drop).value
+					for n = 1, drop.count do
+						if v[n].Y ~= 0 then
+							p[n] = p[n] + v[n]
+							if p[n].Y <= 0 then
+								landing.push(drop.handle[n], p[n].Y)
+								v[n] = Vector3.zero
+							end
+						end
+					end
+				end,
+			}
+			return self
+		end
+
+		local landed = 0
+		local function Land(landing, drop)
+			return {
+				name = "Land",
+				reads = { landing },
+				loop = function()
+					for i = landing.from, landing.last do
+						landed += 1
+						drop.despawn(landing.handle[i])
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", {
+			{ Fall, Drop, Position, Velocity, Landing },
+			{ Land, Landing, Drop },
+		})
+
+		Drop.spawn(Vector3.new(0, 1, 0), Vector3.new(0, -1, 0))
+		Drop.spawn(Vector3.new(0, 5, 0), Vector3.new(0, -1, 0))
+		Beef.Kinds.lap()
+		T.eq(Drop.count, 2, "two drops")
+
+		for _ = 1, 3 do
+			Beef.Events.lap()
+			Beef.Kinds.lap()
+			phase.run()
+		end
+		T.eq(landed, 1, "the low drop landed")
+		Beef.Events.lap()
+		Beef.Kinds.lap()
+		T.eq(Drop.count, 1, "and was despawned")
+	end)
+
+	T.case("a controller reads an event only declared, not handed, and still sees its pushes", function()
+		local Beef = T.load()
+		local Ping = Beef.Events.new("ping", "n:u32")
+
+		local function Pinger(ping)
+			return {
+				name = "Pinger",
+				writes = { ping },
+				loop = function()
+					if ping.count == 0 then
+						ping.push(1)
+					end
+				end,
+			}
+		end
+
+		-- Listener never receives Ping as an argument, the way Sound's mapped Events never do; it
+		-- only names Ping in reads and closes over it
+		local seen: { number } = {}
+		local function Listener()
+			return {
+				name = "Listener",
+				reads = { Ping },
+				loop = function()
+					for i = Ping.from, Ping.last do
+						table.insert(seen, Ping.n[i])
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", {
+			{ Pinger, Ping },
+			{ Listener },
+		})
+
+		phase.run()
+		T.eq(#seen, 1, "a declared read with no handed buffer still gets a window")
+		T.eq(seen[1], 1)
+		T.ok(phase.describe():find("Listener"), "and it is listed by describe")
+	end)
+
+	T.case("a chain that hits the pass cap continues on the next frame, nothing seen twice or dropped", function()
+		local Beef = T.load()
+		local Chain = Beef.Events.new("chain", "n:u32")
+		local LIMIT = 50
+		local seen: { number } = {}
+
+		local function Chaser(chain)
+			return {
+				name = "Chaser",
+				reads = { chain },
+				writes = { chain },
+				loop = function()
+					for i = chain.from, chain.last do
+						local n = chain.n[i]
+						table.insert(seen, n)
+						if n < LIMIT then
+							chain.push(n + 1)
+						end
+					end
+				end,
+			}
+		end
+
+		local phase = Beef.Phase.new("Test", { { Chaser, Chain } })
+		Chain.push(1)
+
+		phase.run()
+		T.eq(phase.passes, 32, "the frame hit the pass cap")
+		T.eq(#seen, 32, "only what the capped passes delivered showed up this frame")
+
+		Beef.Events.lap()
+		phase.run()
+		T.ok(phase.passes < 32, "the rest did not need the cap again to finish")
+		T.eq(#seen, LIMIT, "the whole chain finished, nothing left stuck in the buffer")
+		for i = 1, LIMIT do
+			T.eq(seen[i], i, ("value %d arrived exactly once, in order"):format(i))
+		end
+	end)
+
+	T.case("Wire packs a vector3 round trip", function()
+		local Wire = T.module("Wire")
+		local b = buffer.create(12)
+		Wire.write.vector3(b, 0, Vector3.new(1, 2, 3))
+		local v = Wire.read.vector3(b, 0)
+		T.eq(v.X, 1)
+		T.eq(v.Z, 3)
+	end)
+end

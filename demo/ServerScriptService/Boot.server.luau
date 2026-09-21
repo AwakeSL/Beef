@@ -5,7 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Beef = require(ReplicatedStorage.Beef)
 local Rain = ReplicatedStorage.Rain
-local Events, Kinds, Phase, Drivers, Stock = Beef.Events, Beef.Kinds, Beef.Phase, Beef.Drivers, Beef.Stock
+local Events, Kinds, Phase, Drivers = Beef.Events, Beef.Kinds, Beef.Phase, Beef.Drivers
 local Landing = require(Rain.Events.Landing)
 local Rained = require(Rain.Events.Rained)
 local Drop = require(Rain.Kinds.Drop)
@@ -28,9 +28,11 @@ local heartbeat = Phase.new("Heartbeat", {
 	{ require(Controllers.Land), Landing, Drop },
 	{ require(Controllers.Fall), Drop, Position, Velocity },
 	{ require(Controllers.Floor), Drop, Position },
-	{ Stock.Send, "World", Kinds.died, Rained, Landing },
 	{ require(Controllers.Report) },
 })
+
+-- one call says where every push goes; the packing is a frame edge on the same signal, after the phase has run
+Beef.Replicate(require(Rain.Traffic))
 
 print(heartbeat.describe())
 

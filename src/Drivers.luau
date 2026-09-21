@@ -51,6 +51,17 @@ local function hook(name: string): Hook
 	return h
 end
 
+-- the two edges of a signal's frame: `before` runs ahead of every phase on it, `after` behind all of them.
+-- Replicate delivers what arrived on the before edge and packs what the phases pushed on the after edge, the
+-- way the parallel driver collects and sends around the same phases
+function Drivers.before(signal: string, fn: () -> ())
+	table.insert(hook(signal).before, fn)
+end
+
+function Drivers.after(signal: string, fn: () -> ())
+	table.insert(hook(signal).after, fn)
+end
+
 -- each phase runs on its RunService signal; the frame time arrives as `phase.dt` for controllers that integrate
 function Drivers.events(phases: { [string]: Phase.Phase })
 	for event, phase in phases do
@@ -92,8 +103,8 @@ export type ParallelOptions = {
 	workers: number,
 	phase: ModuleScript,          -- required inside each actor; returns the worker-side wiring (see Stock/Worker)
 	ship: { any },                -- the kind first, then the components that cross each frame (all must have wire types)
-	events: { any }?,             -- event types whose rows cross each frame
-	back: { any },                -- event types the worker phase pushes into; their rows land here at `collect`
+	events: { any }?,             -- event types whose pushes cross each frame
+	back: { any },                -- event types the worker phase pushes into; their pushes land here at `collect`
 	send: string?,                -- RunService signal to pack and send on, PreSimulation by default
 	collect: string?,             -- RunService signal to deliver results on, Heartbeat by default
 }
@@ -186,7 +197,7 @@ local function packKind(kind: any, components: { any }): string
 	return buffer.tostring(b)
 end
 
--- pack this lap's rows of an event type: u32 count then each column in wire form
+-- pack this lap's pushes of an event type: u32 count then each column in wire form
 local function packEvents(buffer_: any, from: number, last: number): string
 	local count = math.max(0, last - from + 1)
 	local size = 4
@@ -213,7 +224,7 @@ local function packEvents(buffer_: any, from: number, last: number): string
 	return buffer.tostring(b)
 end
 
--- unpack rows packed by packEvents into an event type with the same columns
+-- unpack pushes packed by packEvents into an event type with the same columns
 local function unpackEvents(s: string, buffer_: any)
 	local b = buffer.fromstring(s)
 	local count = buffer.readu32(b, 0)
@@ -298,7 +309,7 @@ function Drivers.parallel(options: ParallelOptions): Parallel
 		lastDt = dt
 	end)
 
-	table.insert(hook(options.collect or "Heartbeat").before, function()
+	Drivers.before(options.collect or "Heartbeat", function()
 		local t0 = os.clock()
 		for w = 1, options.workers do
 			local key = "result" .. w
@@ -336,7 +347,7 @@ function Drivers.parallel(options: ParallelOptions): Parallel
 	end)
 
 	local gcBefore = gcinfo()
-	table.insert(hook(options.send or "PreSimulation").after, function()
+	Drivers.after(options.send or "PreSimulation", function()
 		local t0 = os.clock()
 		local gcNow = gcinfo()
 		if gcNow > gcBefore then
