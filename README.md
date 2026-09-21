@@ -123,6 +123,31 @@ reads them in its loop like anything else. Everything that leaves the process go
 driver: `Beef.Records.memory(world)` is tables in memory with a clock a test moves, which is
 how the headless suite runs the lock, a lapsed lock, and two servers over one key.
 
+## Shared
+
+Live cross-server state over MemoryStore, gone at its TTL: a leaderboard, a matchmaking queue, a
+table every server reads and writes at once. Three declared shapes matching the service, and what
+changes on any of them arrives as an ordinary Event.
+
+```luau
+local Ranks = Beef.Shared.sorted("ranks", { value = "u32", ttl = 3600, poll = 5 })
+local Lobby = Beef.Shared.queue("lobby", { fields = { "userId:u64", "rating:u16" }, ttl = 300, poll = 1 })
+
+Ranks.set(key, score)         -- queued; nothing here yields the caller
+Ranks.get(key)                -- what the last poll saw, no request spent
+Ranks.range(from, to, count)  -- that window, held to a range of values
+
+-- Ranks.changed   "key:string", "value:u32"   a set here or on another server
+-- Ranks.removed   "key:string"                removed, or gone at its TTL
+-- Lobby.received  "id:string", then the declared fields; Lobby.remove(id) accepts the batch
+```
+
+A call made in a controller goes on a queue that a pump drains on its own thread, so a loop never
+waits on the service. Request units are counted against the quota Roblox gives, a thousand plus a
+hundred and twenty a player a minute; a call over budget is held and counted in
+`Beef.Shared.stats()`, never dropped. `Beef.Shared.driver(Beef.Shared.tables())` puts tables and a
+clock the test moves by hand where the service was, so all of it runs headless.
+
 ## Demo
 
 ```
