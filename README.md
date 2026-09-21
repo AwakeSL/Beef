@@ -88,6 +88,29 @@ reads and writes.
 `Beef.Stock` has `Send`/`Receive` for events and `Publish`/`Apply` for columns over the
 network, and `Drivers.parallel` runs a phase across Actors. See the demo for all of them.
 
+## Records
+
+Durable state, per key, a DataStore behind it. A record is declared with a shape, a version and
+its migrations; a key is loaded under a session lock, read and written as a plain table, and
+saved on a timer, on release and at close.
+
+```luau
+local Profile = Beef.Records.new("profile", {
+    version = 2,
+    shape = { coins = 0, settings = { music = 0.8 } },
+    migrate = { [2] = function(record) record.settings = { music = 0.8 } end },
+})
+
+Beef.Records.players(Profile)    -- a player's id is the key, their session is the hold
+
+Profile.of(key).coins += 1       -- a read is a table read, a write is a table write
+```
+
+`Profile.loaded`, `.saved`, `.lost` and `.failed` are ordinary Beef Events, so a controller
+reads them in its loop like anything else. Everything that leaves the process goes through a
+driver: `Beef.Records.memory(world)` is tables in memory with a clock a test moves, which is
+how the headless suite runs the lock, a lapsed lock, and two servers over one key.
+
 ## Demo
 
 ```
@@ -101,5 +124,6 @@ A thousand drops a second, cast in four Actors on the server, drawn on the clien
 
 ```
 rojo serve rain.project.json
-selene src demo
+selene src demo test
+lune run scripts/test
 ```
