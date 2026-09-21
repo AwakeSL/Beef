@@ -140,18 +140,22 @@ about where they go.
 Beef.Replicate({
 	toClients = { Damage, Spawned, { Landing, channel = "unreliable" } },
 	toServer = { Input },
-	publish = { Transform = { every = 2, channel = "unreliable", keyframe = 30 } },
+	publish = { { Transform, every = 2, channel = "unreliable", keyframe = 30 } },
 	fleet = {
 		url = "https://relay.example/publish",
 		identity = token,
-		events = {
-			Motion = { route = "key", collapse = true, retention = "replace", window = 0.05 },
-			Damage = { route = "owner" },
-		},
 		kinds = { Creature, Player },
+		events = {
+			{ Motion, route = "key", collapse = true, retention = "replace", window = 0.05 },
+			{ Damage, route = "owner" },
+		},
+		publish = { { Transform, window = 0.05 } },
 	},
 })
 ```
+
+Every entry in the table is the same shape: the thing, then its options. A bare `Damage` is
+`{ Damage }` with defaults.
 
 `toClients` and `toServer` are today's `Send` and `Receive`; `publish` is today's `Publish` and
 `Apply` with the same options (`every`, `channel`, `keyframe`, `chunk`). Beef makes the remotes,
@@ -165,8 +169,13 @@ as options on the entry, and `Wire` types as the quantisation. A Kind listed und
 handle, key)` and `Replicate.want(keys)` are the interest calls. Things nobody owns are
 `Replicate.adopt`, `claim`, `disown`, and every arrival, including `$release`, `$adopt`,
 `$claim`, is a Beef Event with the age as a column, so a controller reads cross-server damage
-in the same lap and the same loop as local damage. The relay stays in the Tether repo; Beef
-carries the client and the Lune rig that talks to it.
+in the same lap and the same loop as local damage. `fleet.publish` sends columns the way
+Tether's buffer already works: at the end of each frame the column value of every placed
+entity is offered, an unchanged value is skipped, a change within the entry's `window` of the
+last replaces what is pending, and what is pending goes at the next transport flush. So a
+position crosses when it changes and at most once a window, newest wins; there is no `every`
+on the fleet side. The relay stays in the Tether repo; Beef carries the client and the Lune
+rig that talks to it.
 
 ## Cue
 
@@ -233,7 +242,173 @@ ticket's.
 - **Music**. One stream with states, crossfade, ducking when Sound asks. Reads the state
   changes a game pushes; writes nothing.
 
+## API
+
+The whole surface after this change. `Kinds`, `Components`, `Events`, `Phase`, `Drivers`, and
+`Wire` are as they are today.
+
+### Records
+
+```luau
+local Profile = Beef.Records.new("profile", {
+	version = 3,
+	shape = { coins = 0, settings = { music = 0.8 }, unlocked = {} },
+	migrate = { [2] = function(r) ... end, [3] = function(r) ... end },
+	save = 30,      -- seconds between timed saves, optional
+	lock = 60,      -- seconds between lock refreshes, optional
+})
+
+Profile.load(key)           -- takes the lock, loads, migrates; fires loaded or failed
+Profile.release(key)        -- saves, drops the lock
+Profile.of(key)             -- the record, a plain table, or nil if not held
+Profile.held(key)           -- true while this server holds it
+Profile.save(key)           -- save now, outside the timer
+
+Profile.loaded              -- Events: "key:string"
+Profile.saved               -- "key:string"
+Profile.lost                -- "key:string"            lock lost, record now read-only
+Profile.failed              -- "key:string", "why:string"
+
+Beef.Records.players(Profile)   -- PlayerAdded -> load(userId), PlayerRemoving -> release(userId)
+Beef.Records.driver(driver)     -- { get, update, release, lock, refresh, unlock }; Lune tables in tests
+Beef.Records.flush()            -- save every held record now; what BindToClose calls
+```
+
+### Shared
+
+```luau
+local Ranks   = Beef.Shared.sorted("ranks",   { value = "u32", ttl = 3600, poll = 5 })
+local Lobby   = Beef.Shared.queue("lobby",    { fields = { "userId:u64", "rating:u16" }, ttl = 300, poll = 1 })
+local Auction = Beef.Shared.map("auction",    { fields = { "price:u32", "holder:u64" }, ttl = 600, poll = 2 })
+
+Ranks.set(key, value)  Ranks.get(key)  Ranks.remove(key)  Ranks.range(from, to, count)
+Ranks.changed          -- Event: "key:string", "value:u32"
+
+Lobby.add(fields...)   Lobby.read(count)  Lobby.remove(id)
+Lobby.received         -- Event: "id:string", then the declared fields
+
+Auction.set(key, fields...)  Auction.get(key)  Auction.update(key, fn)  Auction.remove(key)
+Auction.changed        -- Event: "key:string", then the declared fields
+
+Beef.Shared.driver(driver)
+Beef.Shared.stats()    -- units used this minute, calls held waiting for budget
+```
+
+### Replicate
+
+```luau
+Beef.Replicate({
+	toClients = { Damage, Spawned, { Landing, channel = "unreliable" } },
+	toServer  = { Input },
+	publish   = { { Transform, every = 2, channel = "unreliable", keyframe = 30, chunk = 64 } },
+	fleet = {
+		url = "...", identity = token, interval = 0.125, budget = 480,
+		kinds   = { Creature, Player },                       -- get a fleet id column
+		events  = {
+			{ Motion, route = "key", collapse = true, retention = "replace", window = 0.05 },
+			{ Damage, route = "owner" },
+		},
+		publish = { { Transform, window = 0.05 } },           -- columns, offered on change
+	},
+})
+
+Beef.Replicate.place(kind, handle, key)   -- which relay key this entity lives under
+Beef.Replicate.want(keys)                 -- which keys this server wants to hear
+Beef.Replicate.adopt(id)  .claim(id)  .disown(id)
+
+Beef.Replicate.released   -- Events: "id:u32", "age:f32"
+Beef.Replicate.adopted    -- "id:u32", "server:string", "age:f32"
+Beef.Replicate.claimed    -- "id:u32", "server:string", "age:f32"
+Beef.Replicate.stats()
+```
+
+### Cue
+
+```luau
+local cue = Beef.Cue.new():defaults()
+Beef.Cue.Attached                          -- the Component any Kind with content includes
+
+-- vocabulary, as today
+cue:operator(name, { stage, commutes, means })
+cue:type(name, { is, zero, words, constructors, operators, entity, means })
+cue:key(name, { type, means })
+cue:gate(name, { test, means })
+cue:schedule(name, { kind, type, ready, means })
+cue:outcome(name, { kind, means })
+
+-- the seam
+cue:field("hp",   { type = "amount", component = Health })       -- self.hp is one column index
+cue:anchor("Hit", { event = Hit, self = "self" })                 -- a push to Hit is a firing
+cue:primitive("take", {
+	takes = { to = "who takes", ammo = "what kind" },
+	returns = "entity",
+	refuses = { "ammo" },
+	event = Take,
+})
+-- declares Take         (to, ammo, seq)             the ask
+--          Take.done    (seq, result)               the answer, result typed by `returns`
+--          Take.refused (seq, because)              the other answer
+
+-- content, as today
+local sting = cue:define(table, "sting")      -- checked and folded here; errors name the file
+cue:attach(handle, sting)                     -- writes Cue.Attached
+cue:detach(handle, sting)
+cue:fire(handle, "Begin", ctx, scope)         -- a direct firing; scope carries bindings to Release
+
+-- running
+Beef.Cue.Runner                               -- { Cue.Runner, cue } in a Phase
+                                              --   reads every bound anchor and every .done/.refused
+                                              --   pushes a step, reads its answer, pushes the next
+
+-- looking in, as today
+cue:stats()  cue:reference()  cue:primitives()  cue:keysOf(prim)  cue:typeOf(key)
+cue:wordsOf(type)  cue:constructorsOf(type)
+```
+
+The controller that does a primitive's work reads its Event and answers every push:
+
+```luau
+local function Taking(take, player, quiver)
+	return {
+		name = "Taking",
+		reads = { take },
+		loop = function()
+			local q = quiver.of(player).value
+			for i = take.from, take.last do
+				local arrow = q[player.slot(take.to[i])]:pop(take.ammo[i])
+				if arrow then take.done.push(take.seq[i], arrow)
+				else take.refused.push(take.seq[i], "ammo") end
+			end
+		end,
+	}
+end
+```
+
+Gone from Cue as it is now: the four adapter functions, `apply`, `observe`, `start`, `step`,
+`tick`.
+
+### Stock
+
+```luau
+Beef.Stock.Action           -- Event: "name:string", "phase:u8", "value:f32", "device:u8"
+
+Beef.Stock.Input(Action, bindings)
+Beef.Stock.Movement(Action, Body, Velocity, moves)
+Beef.Stock.Camera(Transform, Effect)
+Beef.Stock.Sound(map)
+Beef.Stock.Screens(Action, Focus, screens)
+Beef.Stock.Music(State, tracks)
+```
+
+Each is a factory taking the Events and Components the game names, returning a controller
+`{ name, reads, writes, boot, pre, loop, post }` that goes in a Phase like anything the game
+wrote.
+
 ## Tests
+
+Beef has no headless suite today, only the Lune inline script. The Records ticket sets the rig
+up: a `lune run test` that loads `src/` with `Vector3` and the other datatypes from
+`@lune/roblox`, and every ticket after it adds to that suite.
 
 Every core piece runs headless under Lune through its driver, and the Studio suite covers the
 engine edge only: a real DataStore round trip, a real remote, a real relay through the live
