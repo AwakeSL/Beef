@@ -4,11 +4,12 @@
 -- Events and Components and nothing else, so a game that writes its own against the same ones drops it in
 -- where the stock one was. `Action` is the vocabulary they share; the controllers hang off it.
 --
--- Input is here. Movement, Camera, Sound, Screens and Music are the tickets after it and land beside it,
--- one file or one folder each, added to the table at the bottom and to nothing else.
+-- Input and Movement are here. Camera, Sound, Screens and Music are the tickets after them and land
+-- beside them, one file or one folder each, added to the table at the bottom and to nothing else.
 
 local Action = require(script.Action)
 local Input = require(script.Input)
+local Movement = require(script.Movement)
 local Feed = require(script.Input.Feed)
 
 export type Declared = Input.Declared
@@ -22,6 +23,7 @@ return {
 	Edges = Action.Edges,
 
 	Input = Input,
+	Movement = Movement,
 
 	-- an input driver with a clock a test moves and keys it presses, handed to `Input` in place of the
 	-- engine. A spec of Beef's own uses it, and so does a game testing its own controllers headless.
