@@ -25,6 +25,10 @@
 --               ListItemsAsync [partitions scanned] + [items returned]
 --   limits      a key is at most 128 characters, a value at most 32 KB, a TTL at most 3,888,000
 --               seconds, and a structure at most a million items or 100 MB
+-- What a structure costs while it sits there is its `count` over its `poll`: twenty items every
+-- five seconds is two hundred and forty units a minute, and those are the defaults. A structure
+-- polled hard enough to outrun the quota holds its own calls up, which stats() shows.
+--
 -- Two of those the game cannot see from in here. A hash map's partition count is not exposed, so
 -- a listing is counted as its items plus one and the real cost is a little above what stats()
 -- says. And the quota is the game's, not the server's, so every server counting the base 1000
@@ -323,7 +327,7 @@ function Shared.sorted(name: string, options: SortedOptions): Sorted
 	local kind = checked(what, options.value)
 	local ttl = ttlOf(what, options.ttl)
 	local every = options.poll or 5
-	local count = options.count or 100
+	local count = options.count or 20
 	local descending = (options.order or "descending") == "descending"
 
 	local changed = Events.new(name .. ".changed", "key:string", "value:" .. kind)
@@ -544,7 +548,7 @@ function Shared.map(name: string, options: MapOptions): Map
 	local width = columns(what, options.fields)
 	local ttl = ttlOf(what, options.ttl)
 	local every = options.poll or 5
-	local count = options.count or 100
+	local count = options.count or 20
 
 	local declaration = { name .. ".changed", "key:string" }
 	for _, field in options.fields do
