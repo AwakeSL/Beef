@@ -6,8 +6,8 @@
 --
 -- What Roblox gives and what this adds. The Input Action System
 -- (https://create.roblox.com/docs/input/input-action-system) gives an InputContext holding InputActions,
--- each with InputBinding children: a binding names a KeyCode, an on-screen UIButton, or the Forward,
--- Backward, Left and Right KeyCodes of a composite direction, and an action of Enum.InputActionType.Bool
+-- each with InputBinding children: a binding names a KeyCode, an on-screen UIButton, or the Up,
+-- Down, Left and Right KeyCodes of a composite direction, and an action of Enum.InputActionType.Bool
 -- fires Pressed and Released while Direction1D and Direction2D fire StateChanged. An analog trigger counts
 -- as pressed at the binding's PressedThreshold. Which device the player is on is
 -- UserInputService.PreferredInput. All of that lives in `Engine`, behind the driver, and nothing in this

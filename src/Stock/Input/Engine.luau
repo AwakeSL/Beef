@@ -16,7 +16,7 @@
 --     Direction2DState, and the events Pressed, Released and StateChanged. Pressed and Released fire for
 --     Bool only; StateChanged fires for every type, and never for a state that did not change.
 --   * an InputBinding names its hardware: KeyCode for a key or a button, UIButton for an on-screen
---     GuiButton, and Forward, Backward, Left and Right for a composite direction. PressedThreshold and
+--     GuiButton, and Up, Down, Left and Right for a composite direction. PressedThreshold and
 --     ReleasedThreshold are where an analog trigger like ButtonR2 counts as pressed and released again on a
 --     Bool action; Scale and Vector2Scale multiply what a direction reports.
 --   * which device the player is on is UserInputService.PreferredInput, an Enum.PreferredInput of
@@ -115,11 +115,13 @@ local function bindMove(action: any, declared: any)
 	if move.forward or move.back or move.left or move.right then
 		-- the four keys are one binding, not four: the engine composes them into the one direction
 		local keys = Instance.new("InputBinding")
+		-- a Direction2D composite is Up, Down, Left and Right; Forward and Backward are the third axis of a
+		-- Direction3D and a 2D action never reads them
 		if move.forward then
-			keys.Forward = move.forward
+			keys.Up = move.forward
 		end
 		if move.back then
-			keys.Backward = move.back
+			keys.Down = move.back
 		end
 		if move.left then
 			keys.Left = move.left

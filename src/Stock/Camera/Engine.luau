@@ -16,7 +16,6 @@
 local SKIN = 0.4 -- how far short of what was hit the camera stops, so it does not sit inside the wall
 local NOTHING = 1 -- the whole way is clear
 
-local scriptable = false
 local params: RaycastParams? = nil
 
 local function camera(): any
@@ -47,7 +46,6 @@ local Engine = {
 		assert(RunService:IsClient(), "Camera: the stock camera controller is a client controller")
 		local it = camera()
 		it.CameraType = Enum.CameraType.Scriptable
-		scriptable = true
 	end,
 
 	viewport = function(): Vector2
@@ -76,10 +74,10 @@ local Engine = {
 
 	set = function(at: CFrame, fov: number)
 		local it = camera()
-		if not scriptable then
-			-- a driver handed to a controller with no boot, or a camera the game swapped underneath it
+		if it.CameraType ~= Enum.CameraType.Scriptable then
+			-- the default camera scripts take the camera back every time the character spawns, so this
+			-- is checked on every write, not remembered from the boot
 			it.CameraType = Enum.CameraType.Scriptable
-			scriptable = true
 		end
 		it.CFrame = at
 		it.FieldOfView = fov
