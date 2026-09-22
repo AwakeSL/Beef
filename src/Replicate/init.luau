@@ -7,6 +7,8 @@
 --
 -- An entry is the thing then its options. A bare `Damage` means `{ Damage }` with defaults; `{ Landing,
 -- channel = "unreliable" }` is the same event type on the other channel. A stream entry takes `channel`. A
+-- `toServer` entry also takes `from`, the column the server fills with the sender's UserId rather than reading
+-- it off the wire, and `limit`, how many pushes of that type one client gets through in a frame. A
 -- publish entry takes `every`, `channel`, `keyframe`, `chunk`, and `origin`, the Component the receiving side
 -- keeps the sender's handle in, since only the game knows which entity here is which entity there.
 --
@@ -52,6 +54,8 @@ export type Stats = {
 	waiting: number,
 	dropped: number,
 	oversize: number,
+	throttled: number,   -- pushes a client sent past its limit, dropped
+	malformed: number,   -- payloads that could not be read, dropped
 	links: { [string]: { [string]: any } },
 	fleet: { [string]: any }?,   -- nil when the boot table declared no fleet
 }
@@ -67,8 +71,13 @@ export type Wiring = {
 local UNRELIABLE = 900
 
 local STREAM_OPTIONS: { [string]: boolean } = { channel = true }
+local TO_SERVER_OPTIONS: { [string]: boolean } = { channel = true, from = true, limit = true }
+-- how many pushes of one event type one client gets through in a frame when its entry does not say
+local LIMIT = 64
+-- what a `from` column may be: a UserId does not fit anything narrower
+local FROM_KINDS: { [string]: boolean } = { u64 = true, f64 = true }
 local PUBLISH_OPTIONS: { [string]: boolean } = { every = true, channel = true, keyframe = true, chunk = true, origin = true }
-local COUNTS = { "sent", "received", "pushes", "bytes", "entities", "applied", "refused", "waiting", "dropped", "oversize" }
+local COUNTS = { "sent", "received", "pushes", "bytes", "entities", "applied", "refused", "waiting", "dropped", "oversize", "throttled", "malformed" }
 
 local driver: Remotes.Driver = Remotes
 local booted = false
@@ -132,13 +141,41 @@ local function stream(key: string, entries: { any }, packedByServer: boolean)
 		{ unreliable = false, buffers = {} :: { any } },
 		{ unreliable = true, buffers = {} :: { any } },
 	}
+	-- per event type name: the column the server fills, and the pushes one client gets through in a frame.
+	-- both are read on both sides, since the client has to leave the column out for the server to fill it
+	local fill: { [string]: string } = {}
+	local limits: { [string]: number } = {}
+	local allowed = if packedByServer then STREAM_OPTIONS else TO_SERVER_OPTIONS
 	for _, entry in entries do
-		local things, options = split(entry, key, STREAM_OPTIONS)
+		local things, options = split(entry, key, allowed)
 		assert(#things == 1, ("Replicate %s: an entry names one event type"):format(key))
 		local buffer_ = things[1]
 		assert(isBuffer(buffer_), ("Replicate %s: %s is not an event type"):format(key, tostring(buffer_)))
 		local group = groups[if unreliableFrom(options, key) then 2 else 1]
 		table.insert(group.buffers, buffer_)
+		if not packedByServer then
+			local column = options.from
+			if column ~= nil then
+				assert(type(column) == "string", ("Replicate %s: from names a column of %s"):format(key, buffer_.name))
+				local kind = buffer_.wire[column]
+				assert(kind ~= nil, ("Replicate %s: %s has no column %s to carry the sender"):format(key, buffer_.name, column))
+				assert(
+					FROM_KINDS[kind],
+					("Replicate %s: %s.%s carries a UserId, so it is u64 or f64, not %s"):format(key, buffer_.name, column, kind)
+				)
+				fill[buffer_.name] = column
+			end
+			local limit = options.limit
+			if limit ~= nil then
+				assert(
+					type(limit) == "number" and limit >= 0 and limit % 1 == 0,
+					("Replicate %s: limit is how many pushes of %s one client gets through in a frame"):format(key, buffer_.name)
+				)
+				limits[buffer_.name] = limit
+			else
+				limits[buffer_.name] = LIMIT
+			end
+		end
 	end
 
 	for _, group in groups do
@@ -149,7 +186,7 @@ local function stream(key: string, entries: { any }, packedByServer: boolean)
 		local name = "Beef." .. key .. (if group.unreliable then ".unreliable" else "")
 		local link = linkFor(name, group.unreliable)
 		if (not not driver.isServer()) == packedByServer then
-			table.insert(outgoing, Send(name, link, buffers, if group.unreliable then UNRELIABLE else math.huge))
+			table.insert(outgoing, Send(name, link, buffers, if group.unreliable then UNRELIABLE else math.huge, fill))
 			for _, buffer_ in buffers do
 				table.insert(windows, buffer_)
 				table.insert(cursors, buffer_.base + buffer_.count + 1)
@@ -160,7 +197,10 @@ local function stream(key: string, entries: { any }, packedByServer: boolean)
 				assert(into[buffer_.name] == nil, ("Replicate %s: two event types are both named %s"):format(key, buffer_.name))
 				into[buffer_.name] = buffer_
 			end
-			table.insert(incoming, Receive(name, link, into, Kinds.named))
+			table.insert(
+				incoming,
+				Receive(name, link, driver, into, Kinds.named, fill, if packedByServer then nil else limits)
+			)
 		end
 	end
 end
@@ -280,6 +320,8 @@ local function stats(): Stats
 		waiting = 0,
 		dropped = 0,
 		oversize = 0,
+		throttled = 0,
+		malformed = 0,
 		links = {},
 	}
 	for _, controller in outgoing do
@@ -298,6 +340,8 @@ local function stats(): Stats
 		out.refused += controller.refused or 0
 		out.waiting += controller.waiting or 0
 		out.dropped += controller.dropped or 0
+		out.throttled += controller.throttled or 0
+		out.malformed += controller.malformed or 0
 		out.links[controller.link] = report(controller)
 	end
 	out.fleet = Fleet.stats()

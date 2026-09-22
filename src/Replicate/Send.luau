@@ -4,16 +4,30 @@
 -- a payload is the kind dictionary, then how many event types are in it, then for each of those its name, how
 -- many pushes it carries, and its columns one after another. `limit` caps a payload: a reliable link has none,
 -- an unreliable one has what the engine will carry, so a frame too big for it goes as several payloads instead
--- of one the engine throws away.
+-- of one the engine throws away. `skip` names, per event type, a column that stays home: the other side
+-- fills it itself, so nothing this side says about it would be believed anyway.
 
 local Wire = require(script.Parent.Parent.Wire)
 local Remotes = require(script.Parent.Remotes)
 
 type Buffer = { name: string, columns: { string }, wire: { [string]: string }, from: number, last: number, [string]: any }
 
-return function(linkName: string, link: Remotes.Link, buffers: { Buffer }, limit: number)
+return function(linkName: string, link: Remotes.Link, buffers: { Buffer }, limit: number, skip: { [string]: string }?)
 	assert(#buffers > 0, ("Send %s: nothing to send"):format(linkName))
 	assert(#buffers < 256, ("Send %s: a link carries at most 255 event types"):format(linkName))
+
+	-- the columns that cross, per event type: every column but the one the other side fills
+	local crossing: { [Buffer]: { string } } = {}
+	for _, buffer_ in buffers do
+		local stays = if skip ~= nil then skip[buffer_.name] else nil
+		local columns: { string } = {}
+		for _, column in buffer_.columns do
+			if column ~= stays then
+				table.insert(columns, column)
+			end
+		end
+		crossing[buffer_] = columns
+	end
 
 	-- every column has to have a wire type to cross, and the fixed-width ones are priced once here rather than
 	-- per push: only a kind or a string column costs something that depends on the value
@@ -22,7 +36,7 @@ return function(linkName: string, link: Remotes.Link, buffers: { Buffer }, limit
 	for _, buffer_ in buffers do
 		local bytes = 0
 		local odd: { string } = {}
-		for _, column in buffer_.columns do
+		for _, column in crossing[buffer_] do
 			local kind = buffer_.wire[column]
 			assert(kind, ("Send %s: event %s column %s has no wire type"):format(linkName, buffer_.name, column))
 			assert(Wire.known(kind), ("Send %s: event %s column %s has unknown wire type %s"):format(linkName, buffer_.name, column, kind))
@@ -105,7 +119,7 @@ return function(linkName: string, link: Remotes.Link, buffers: { Buffer }, limit
 			at = write.string(b, at, buffer_.name)
 			buffer.writeu32(b, at, last - from + 1)
 			at += 4
-			for _, column in buffer_.columns do
+			for _, column in crossing[buffer_] do
 				local kind = buffer_.wire[column]
 				local values = buffer_[column]
 				if kind == "kind" then

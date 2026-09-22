@@ -21,6 +21,7 @@ export type Driver = {
 	now: () -> number,
 	link: (name: string, unreliable: boolean) -> Link,
 	joining: (arrived: (who: any) -> ()) -> (),
+	who: ((from: any) -> any)?, -- the id a `from` column carries for this sender; the sender itself when absent
 }
 
 local function folder(): Folder
@@ -41,6 +42,11 @@ local Remotes: Driver = {
 
 	now = function(): number
 		return workspace:GetServerTimeNow()
+	end,
+
+	-- what a `from` column carries: the UserId, which is the one thing about a player a client cannot forge
+	who = function(from: any): any
+		return from.UserId
 	end,
 
 	-- the server makes the remote, the client waits for it, so a client boot yields here until the server is up
@@ -70,11 +76,16 @@ local Remotes: Driver = {
 			receive = function(handler: (payload: buffer, from: any?) -> ())
 				if server then
 					remote.OnServerEvent:Connect(function(player: Player, payload: any)
-						handler(payload :: buffer, player)
+						-- a client can fire anything at a remote; only a buffer is a payload
+						if typeof(payload) == "buffer" then
+							handler(payload, player)
+						end
 					end)
 				else
 					remote.OnClientEvent:Connect(function(payload: any)
-						handler(payload :: buffer, nil)
+						if typeof(payload) == "buffer" then
+							handler(payload, nil)
+						end
 					end)
 				end
 			end,

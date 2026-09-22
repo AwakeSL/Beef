@@ -322,7 +322,7 @@ Headless, the driver goes in before the first declaration.
 ```luau
 Beef.Replicate({
 	toClients = { Damage, Spawned, { Landing, channel = "unreliable" } },
-	toServer  = { Input },
+	toServer  = { { Input, from = "who", limit = 16 } },
 	publish   = { { Transform, every = 2, channel = "unreliable", keyframe = 30, chunk = 64, origin = Player } },
 	fleet = {
 		url = "...", identity = token, interval = 0.125, budget = 480,

@@ -8,7 +8,8 @@ return function(T)
 	-- `deliver` hands it across, so a payload crosses exactly when a case says so and a case can drop one the
 	-- way an unreliable remote does.
 	local function network(): any
-		local net: any = { links = {}, queue = {}, joining = {}, clock = 0, dropped = 0 }
+		-- `sender` is who the server hears a client payload from, the way a live remote hands the Player over
+		local net: any = { links = {}, queue = {}, joining = {}, clock = 0, dropped = 0, sender = 1 }
 
 		net.endpoint = function(isServer: boolean): any
 			return {
@@ -55,7 +56,7 @@ return function(T)
 				end
 				local handlers = if message.fromServer then message.link.client else message.link.server
 				for _, handler in handlers do
-					handler(message.payload, if message.fromServer then nil else "client")
+					handler(message.payload, if message.fromServer then nil else net.sender)
 				end
 			end
 		end
@@ -262,6 +263,120 @@ return function(T)
 	end)
 
 	-- ------------------------------------------------------------------ toServer
+
+	T.case("a from column is the server's word: the client's value never crosses", function()
+		local net, server, client = pair(function(Beef)
+			local Input = Beef.Events.new("input", "who:u64", "action:string")
+			return { Input = Input, map = { toServer = { { Input, from = "who" } } } }
+		end)
+
+		net.sender = 4242
+		client.Input.push(999, "jump") -- a client claiming to be someone else
+		crosses(net, client, server)
+
+		T.eq(server.Input.count, 1)
+		T.eq(server.Input.who[1], 4242, "the sender the link reported, not what the client wrote")
+		T.eq(server.Input.action[1], "jump")
+
+		-- and the column stayed home: the payload is the name, the count, and the string alone
+		local bytes = server.Beef.Replicate.stats().bytesIn
+		T.ok(bytes < 2 + 2 + #"input" + 4 + 2 + #"jump" + 8, "no eight bytes of who on the wire, got " .. tostring(bytes))
+	end)
+
+	T.case("from wants a column wide enough for a UserId, and only on toServer", function()
+		local Beef = T.load()
+		local Narrow = Beef.Events.new("narrow", "who:u32")
+		T.throws(function()
+			Beef.Replicate({ toServer = { { Narrow, from = "who" } } })
+		end, "u64 or f64")
+
+		local Beef2 = T.load()
+		local Wide = Beef2.Events.new("wide", "who:u64")
+		T.throws(function()
+			Beef2.Replicate({ toServer = { { Wide, from = "nope" } } })
+		end, "no column nope")
+
+		local Beef3 = T.load()
+		local Damage = Beef3.Events.new("damage", "who:u64")
+		T.throws(function()
+			Beef3.Replicate({ toClients = { { Damage, from = "who" } } })
+		end, "not an option here")
+	end)
+
+	T.case("a client gets its limit of pushes through in a frame and the rest are throttled", function()
+		local net, server, client = pair(function(Beef)
+			local Input = Beef.Events.new("input", "n:u32")
+			return { Input = Input, map = { toServer = { { Input, limit = 3 } } } }
+		end)
+
+		for i = 1, 10 do
+			client.Input.push(i)
+		end
+		crosses(net, client, server)
+		T.eq(server.Input.count, 3, "three of ten landed")
+		T.eq(server.Input.n[3], 3, "the first three, in order")
+		T.eq(server.Beef.Replicate.stats().throttled, 7, "and the seven are counted")
+
+		-- the count is per frame: the next frame starts over
+		server.Beef.Events.lap()
+		client.Beef.Events.lap()
+		client.Input.push(11)
+		crosses(net, client, server)
+		T.eq(server.Input.count, 4, "a fresh frame, a fresh limit: one more landed")
+		T.eq(server.Input.n[4], 11)
+	end)
+
+	T.case("a limit is per sender: two clients each get their own", function()
+		local net, server, client = pair(function(Beef)
+			local Input = Beef.Events.new("input", "n:u32")
+			return { Input = Input, map = { toServer = { { Input, limit = 2 } } } }
+		end)
+
+		-- one client packs, the link delivers it as two different senders
+		for i = 1, 4 do
+			client.Input.push(i)
+		end
+		client.wiring.pack()
+		local first = net.queue[1]
+		table.insert(net.queue, { link = first.link, fromServer = false, payload = first.payload, to = nil })
+		net.sender = 1
+		local queue = net.queue
+		net.queue = { queue[1] }
+		net.deliver()
+		net.sender = 2
+		net.queue = { queue[2] }
+		net.deliver()
+		server.wiring.deliver()
+
+		T.eq(server.Input.count, 4, "two from each sender")
+		T.eq(server.Beef.Replicate.stats().throttled, 4, "and two dropped from each")
+	end)
+
+	T.case("a payload that cannot be read is dropped and counted, and the frame goes on", function()
+		local net, server, client = pair(function(Beef)
+			local Input = Beef.Events.new("input", "n:u32", "text:string")
+			return { Input = Input, map = { toServer = { Input } } }
+		end)
+
+		client.Input.push(1, "fine")
+		client.wiring.pack()
+		local good = net.queue[1].payload
+		-- the same payload cut short, and one that is not a payload at all
+		local short = buffer.create(buffer.len(good) - 3)
+		buffer.copy(short, 0, good, 0, buffer.len(short))
+		local junk = buffer.create(5)
+		buffer.fill(junk, 0, 255)
+		table.insert(net.queue, 1, { link = net.queue[1].link, fromServer = false, payload = short })
+		table.insert(net.queue, 1, { link = net.queue[1].link, fromServer = false, payload = junk })
+		net.deliver()
+		server.wiring.deliver()
+
+		T.eq(server.Input.count, 1, "the whole one landed")
+		T.eq(server.Input.text[1], "fine")
+		local stats = server.Beef.Replicate.stats()
+		T.eq(stats.received, 3, "all three were received")
+		T.eq(stats.malformed, 2, "and two could not be read")
+	end)
 
 	T.case("toServer runs the same stream the other way", function()
 		local net, server, client = pair(function(Beef)

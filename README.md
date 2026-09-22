@@ -98,7 +98,13 @@ Beef.Replicate({
 Events and Components say nothing about the network; this table says it, once, and the same
 table runs on both sides. Beef makes the remotes, packs what the phases pushed after they have
 run, and unpacks into the same event types and columns on the other side. `Replicate.stats()`
-says what crossed. `Drivers.parallel` runs a phase across Actors. See the demo for both.
+says what crossed.
+
+A `toServer` entry can say `from = "who"`: that column is left off the wire and the server
+fills it with the sender's UserId, so who pushed is never the client's word. Each `toServer`
+type lets one client through `limit` pushes a frame, 64 unless the entry says, and the rest are
+dropped and counted as `throttled`. A payload that cannot be read is dropped and counted as
+`malformed`; the server never throws on what a client sent. `Drivers.parallel` runs a phase across Actors. See the demo for both.
 
 ## Records
 
